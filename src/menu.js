@@ -4,6 +4,7 @@ import { buildHero, prepHero, animateHero, toon } from './models.js';
 import { TEAM_COLORS, TEAM_CSS } from './config.js';
 import { t, tr } from './i18n.js';
 import { audio } from './audio.js';
+import { view } from './view.js';
 
 const store = {
   get(key, fallback) { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } },
@@ -96,7 +97,7 @@ export class MenuScene {
   }
 
   resize() {
-    const a = window.innerWidth / window.innerHeight;
+    const a = view.w / view.h;
     this.camera.aspect = a;
     this.camera.position.set(0, 2.5, a < 1.4 ? 13 : 10.5);
     this.camera.lookAt(0, 1.25, 0);
@@ -131,6 +132,7 @@ export class MenuUI {
         <div class="logo"><span class="l1">DRIP</span><span class="l2">CLASH</span></div>
         <div class="tagline">${t('tagline')}</div>
         <div class="chips"><div class="trophies"><i></i><b>${getTrophies()}</b> ${t('trophies')}</div><button class="sound" aria-label="${t('sound')}"></button></div>
+        <div class="rot-hint">${t('rotate')}</div>
         <div class="howto"><div>${t('tip1')}</div><div>${t('tip2')}</div><div>${t('tip3')}</div></div>
       </div>
       <div class="menu-right"></div>

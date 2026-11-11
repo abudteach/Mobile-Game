@@ -13,6 +13,7 @@ import { Input } from './input.js';
 import { initAI, updateAI } from './ai.js';
 import { audio } from './audio.js';
 import { t } from './i18n.js';
+import { view } from './view.js';
 
 const HERO_R = 0.6;
 const TOWER_RANGE = 10;
@@ -238,8 +239,7 @@ export class Match {
   }
 
   resize() {
-    const w = window.innerWidth, h = window.innerHeight;
-    this.camera.aspect = w / h;
+    this.camera.aspect = view.w / view.h;
     this.camera.updateProjectionMatrix();
     // pull the camera back on narrow screens so the lane stays readable
     this.camZoom = Math.max(1, Math.min(1.7, 1.75 / this.camera.aspect));
@@ -415,7 +415,7 @@ export class Match {
   }
 
   screenToGround(sx, sy) {
-    v3.set((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1, 0.5).unproject(this.camera);
+    v3.set((sx / view.w) * 2 - 1, -(sy / view.h) * 2 + 1, 0.5).unproject(this.camera);
     const o = this.camera.position;
     const dy = v3.y - o.y;
     if (dy >= -1e-4) return null;
@@ -486,7 +486,7 @@ export class Match {
   floatText(u, text, cls) {
     v3.set(u.x, u.kind === 'hero' ? 2.6 : 2, u.z).project(this.camera);
     if (v3.z > 1) return;
-    this.hud.floater((v3.x * 0.5 + 0.5) * window.innerWidth, (-v3.y * 0.5 + 0.5) * window.innerHeight, text, cls);
+    this.hud.floater((v3.x * 0.5 + 0.5) * view.w, (-v3.y * 0.5 + 0.5) * view.h, text, cls);
   }
 
   damage(u, amount, src) {

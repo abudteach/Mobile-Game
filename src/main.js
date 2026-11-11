@@ -5,12 +5,13 @@ import './style.css';
 import { Match } from './game.js';
 import { MenuScene, MenuUI, ResultUI, makeThumbs, addTrophies } from './menu.js';
 import { audio } from './audio.js';
-import { t } from './i18n.js';
+import { view, updateView } from './view.js';
 
 const params = new URLSearchParams(location.search);
 
 class App {
   constructor() {
+    updateView();
     this.canvas = document.getElementById('game');
     this.hudRoot = document.getElementById('ui');
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
@@ -26,8 +27,6 @@ class App {
     this.heroId = 'riko';
     this.last = performance.now();
     this.quality = { ratio: Math.min(window.devicePixelRatio || 1, 2), slow: 0, shadows: true };
-    this.portrait = matchMedia('(orientation: portrait) and (pointer: coarse)');
-    document.querySelector('#rotate p').textContent = t('rotate');
 
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 250));
@@ -42,9 +41,9 @@ class App {
   }
 
   resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    updateView();
     this.renderer.setPixelRatio(this.quality.ratio);
-    this.renderer.setSize(w, h, false);
+    this.renderer.setSize(view.w, view.h, false);
     this.menuScene?.resize();
     this.match?.resize();
   }
@@ -85,7 +84,7 @@ class App {
       const p = document.documentElement.requestFullscreen?.();
       const lock = () => screen.orientation?.lock?.('landscape')?.catch?.(() => {});
       if (p?.then) p.then(lock).catch(() => {}); else lock();
-    } catch { /* not supported – the CSS rotate hint covers it */ }
+    } catch { /* not supported – view.js turns the stage instead */ }
   }
 
   // Keep the frame rate up on weaker phones: first lower the resolution, then drop shadows.
@@ -103,7 +102,6 @@ class App {
     const now = performance.now();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    if (this.portrait.matches) return; // paused behind the "rotate your phone" overlay
     this.adaptQuality(dt);
     if (this.match) {
       this.match.update(dt);

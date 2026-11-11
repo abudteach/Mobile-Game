@@ -1,5 +1,7 @@
 // Unified input: touch (virtual stick + aim buttons) and desktop (WASD + mouse).
 // Screen right = world +x, screen down = world +z (the camera looks "north").
+import { view, toView } from './view.js';
+
 const DEAD = 0.28;
 
 export class Input {
@@ -45,12 +47,13 @@ export class Input {
         if (e.button === 2) this.actions.push({ type: 'ability', aimed: false, mouse: true });
         return;
       }
-      if (this.stickId !== null || e.clientX > window.innerWidth * 0.55) return;
+      const p = toView(e.clientX, e.clientY);
+      if (this.stickId !== null || p.x > view.w * 0.55) return;
       this.stickId = e.pointerId;
       this.zone.setPointerCapture(e.pointerId);
-      this.stick.ox = e.clientX; this.stick.oy = e.clientY;
-      this.base.style.left = `${e.clientX}px`;
-      this.base.style.top = `${e.clientY}px`;
+      this.stick.ox = p.x; this.stick.oy = p.y;
+      this.base.style.left = `${p.x}px`;
+      this.base.style.top = `${p.y}px`;
       this.base.classList.add('on');
       this.setStick(0, 0);
     });
@@ -58,7 +61,8 @@ export class Input {
       if (e.pointerType === 'mouse') { this.mouse.seen = true; this.mouse.x = e.clientX; this.mouse.y = e.clientY; return; }
       if (e.pointerId !== this.stickId) return;
       const R = this.base.offsetWidth * 0.5 || 60;
-      let vx = (e.clientX - this.stick.ox) / R, vy = (e.clientY - this.stick.oy) / R;
+      const p = toView(e.clientX, e.clientY);
+      let vx = (p.x - this.stick.ox) / R, vy = (p.y - this.stick.oy) / R;
       const m = Math.hypot(vx, vy);
       if (m > 1) { vx /= m; vy /= m; }
       this.setStick(vx, vy);
@@ -100,13 +104,15 @@ export class Input {
       b.id = e.pointerId;
       b.el.setPointerCapture(e.pointerId);
       const rect = b.el.getBoundingClientRect();
-      b.cx = rect.left + rect.width / 2; b.cy = rect.top + rect.height / 2; b.R = rect.width * 0.62;
+      const c = toView(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      b.cx = c.x; b.cy = c.y; b.R = rect.width * 0.62;
       b.vx = b.vy = 0;
       b.el.classList.add('held');
     });
     this.on(b.el, 'pointermove', (e) => {
       if (e.pointerId !== b.id) return;
-      let vx = (e.clientX - b.cx) / b.R, vy = (e.clientY - b.cy) / b.R;
+      const p = toView(e.clientX, e.clientY);
+      let vx = (p.x - b.cx) / b.R, vy = (p.y - b.cy) / b.R;
       const m = Math.hypot(vx, vy);
       if (m > 1) { vx /= m; vy /= m; }
       b.vx = vx; b.vy = vy;
