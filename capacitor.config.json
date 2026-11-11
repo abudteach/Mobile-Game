@@ -1,0 +1,8 @@
+{
+  "appId": "com.dripclash.game",
+  "appName": "Drip Clash",
+  "webDir": "dist",
+  "backgroundColor": "#15122e",
+  "android": { "backgroundColor": "#15122e" },
+  "ios": { "backgroundColor": "#15122e", "contentInset": "never" }
+}

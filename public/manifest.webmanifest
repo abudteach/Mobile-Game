@@ -1,0 +1,11 @@
+{
+  "name": "Drip Clash",
+  "short_name": "Drip Clash",
+  "description": "3v3 paint brawler: paint the arena, push the lane, crack the core.",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#15122e",
+  "theme_color": "#15122e",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
