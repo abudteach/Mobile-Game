@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { glowSprite } from './gfx.js';
 
 const MAX = 320;
 const tmp = new THREE.Object3D();
@@ -29,6 +30,11 @@ export class Fx {
       scene.add(m);
       this.rings.push({ m, t: 0, dur: 1, r: 1 });
     }
+
+    // short additive flashes (muzzle, impacts)
+    this.flashes = [];
+    for (let i = 0; i < 16; i++) { const s = glowSprite(0xffffff, 1, 1, 1.4); s.visible = false; scene.add(s); this.flashes.push({ s, t: 0, size: 1 }); }
+    this.flashI = 0;
 
     this.beams = [];
     const beamGeo = new THREE.BoxGeometry(1, 0.35, 1);
@@ -76,6 +82,15 @@ export class Fx {
     slot.t = 0.28;
   }
 
+  flash(x, y, z, color, size = 2) {
+    const f = this.flashes[this.flashI];
+    this.flashI = (this.flashI + 1) % this.flashes.length;
+    f.s.position.set(x, y, z);
+    f.s.material.color.set(color).multiplyScalar(1.3);
+    f.s.visible = true;
+    f.t = 0.12; f.size = size;
+  }
+
   addShake(v) { this.shake = Math.min(1.2, this.shake + v); }
 
   update(dt) {
@@ -109,6 +124,14 @@ export class Fx {
       if (b.t <= 0) { b.m.visible = false; continue; }
       b.m.material.opacity = b.t / 0.28;
       b.m.scale.x = b.w * (0.4 + 0.6 * (b.t / 0.28));
+    }
+    for (const f of this.flashes) {
+      if (!f.s.visible) continue;
+      f.t -= dt;
+      if (f.t <= 0) { f.s.visible = false; continue; }
+      const k = f.t / 0.12;
+      f.s.scale.setScalar(f.size * (1.4 - 0.4 * k));
+      f.s.material.opacity = k * 0.7;
     }
     this.shake = Math.max(0, this.shake - dt * 2.6);
   }

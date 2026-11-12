@@ -11,11 +11,11 @@ export class Gfx {
     this.renderer = renderer;
     this.post = true;
     renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 1.08;
+    renderer.toneMappingExposure = 1.0;
     const target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(renderer, target);
     this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.5, 0.6, 0.92);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.26, 0.4, 1.0);
     this.composer.addPass(this.renderPass);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -43,7 +43,7 @@ export class Gfx {
 export function glow(hex, target = 1.25) {
   const c = new THREE.Color(hex);
   const l = c.r * 0.2126 + c.g * 0.7152 + c.b * 0.0722;
-  return c.multiplyScalar(Math.max(1, target / Math.max(l, 0.04)));
+  return c.multiplyScalar(Math.min(4.6, Math.max(1, target / Math.max(l, 0.04))));
 }
 
 export const glowMat = (hex, target) => new THREE.MeshBasicMaterial({ color: glow(hex, target) });
@@ -83,10 +83,24 @@ export function addRim(mat, flash = NO_FLASH, strength = 1) {
       .replace('#include <opaque_fragment>', `
         float rimF = pow(1.0 - saturate(dot(normalize(vViewPosition), normal)), 2.4) * uRim;
         outgoingLight += diffuseColor.rgb * rimF * 0.5 + vec3(0.30, 0.42, 0.85) * rimF * 0.22;
-        outgoingLight = mix(outgoingLight, vec3(1.7, 1.7, 1.6), uFlash);
+        outgoingLight = mix(outgoingLight, vec3(1.0, 0.98, 0.94), uFlash * 0.55);
         #include <opaque_fragment>`);
   };
   return mat;
+}
+
+// Shield bubble: only the rim is visible, so it does not tint what is inside it.
+export function bubbleMat(hex, opacity = 1) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uColor: { value: glow(hex, 1.05) }, uOpacity: { value: opacity } },
+    vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying vec3 vN; varying vec3 vV;
+      void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0); gl_FragColor = vec4(uColor, (0.04 + f) * uOpacity);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+      }`,
+  });
 }
 
 // Canvas helper for procedural textures.

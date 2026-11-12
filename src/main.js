@@ -3,7 +3,7 @@ import '@fontsource/fredoka/latin-600.css';
 import '@fontsource/fredoka/latin-700.css';
 import './style.css';
 import { Match } from './game.js';
-import { MenuScene, MenuUI, ResultUI, makeThumbs, addTrophies } from './menu.js';
+import { MenuScene, MenuUI, ResultUI, addTrophies } from './menu.js';
 import { audio } from './audio.js';
 import { Gfx } from './gfx.js';
 import { view, updateView } from './view.js';
@@ -19,14 +19,13 @@ class App {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.thumbs = makeThumbs(this.renderer);
     this.renderer.setClearColor(0x0d0a24, 1);
     this.gfx = new Gfx(this.renderer);
     this.match = null;
     this.menuScene = new MenuScene();
     this.menuUI = null;
     this.resultUI = null;
-    this.heroId = 'riko';
+    this.heroId = 'jaro';
     this.last = performance.now();
     this.quality = { ratio: Math.min(window.devicePixelRatio || 1, 2), slow: 0, shadows: true };
 
@@ -37,7 +36,8 @@ class App {
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     this.resize();
 
-    if (params.get('start')) this.startMatch(params.get('hero') || 'riko');
+    if (params.get('models')) this.showModels();
+    else if (params.get('start')) this.startMatch(params.get('hero') || 'jaro');
     else this.showMenu();
     this.renderer.setAnimationLoop(() => this.frame());
   }
@@ -49,10 +49,25 @@ class App {
     this.match?.resize();
   }
 
+  // Debug view (?models=1): all hero models side by side.
+  async showModels() {
+    const [{ buildHero, animateHero }, { HEROES }] = await Promise.all([import('./models.js'), import('./heroes.js')]);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x2a2650);
+    scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x6a3f8a, 1.15));
+    const sun = new THREE.DirectionalLight(0xffe9cc, 2.3); sun.position.set(-6, 14, 8); scene.add(sun);
+    const cam = new THREE.PerspectiveCamera(30, view.w / view.h, 0.1, 100);
+    const top = params.get('models') === 'top';
+    cam.position.set(0, top ? 17.6 : 7, top ? 12 : 22); cam.lookAt(0, top ? 0 : 1.2, top ? -0.6 : 0);
+    const list = HEROES.map((h, i) => { const m = buildHero(h.id, i % 2); m.root.position.set((i % 5 - 2) * 3.4 + (i < 5 ? 0.8 : -0.8), 0, i < 5 ? -3 : 2.4); m.root.rotation.y = 0.3; scene.add(m.root); return m; });
+    let t = 0;
+    this.menuScene = { resize() {}, update: (dt) => { t += dt; for (const m of list) animateHero(m, t, dt, { moving: params.get('walk') ? 1 : 0, kick: 0 }); }, render: (gfx) => gfx.render(scene, cam) };
+  }
+
   showMenu() {
     this.clear();
     document.body.classList.add('in-menu');
-    this.menuUI = new MenuUI(this.hudRoot, this.thumbs, (id) => { this.goFullscreen(); this.startMatch(id); }, (id) => this.menuScene.setHero(id));
+    this.menuUI = new MenuUI(this.hudRoot, (id) => { this.goFullscreen(); this.startMatch(id); });
   }
 
   startMatch(heroId) {
@@ -60,7 +75,7 @@ class App {
     document.body.classList.remove('in-menu');
     this.heroId = heroId;
     this.renderer.shadowMap.enabled = this.quality.shadows;
-    this.match = new Match(this, heroId, { autoplay: params.get('autoplay') === '1', speed: parseFloat(params.get('speed')) || 1 });
+    this.match = new Match(this, heroId, { autoplay: params.get('autoplay') === '1', speed: parseFloat(params.get('speed')) || 1, comp: params.get('comp') });
     window.__match = this.match; // handy for debugging in the console
   }
 
@@ -69,7 +84,7 @@ class App {
     const delta = result.winner === null ? 0 : win ? 8 + (result.mvp.isPlayer ? 2 : 0) : -3;
     addTrophies(delta);
     this.match.hud.el.classList.add('faded');
-    this.resultUI = new ResultUI(this.hudRoot, result, this.thumbs, delta, () => this.startMatch(this.heroId), () => this.showMenu());
+    this.resultUI = new ResultUI(this.hudRoot, result, delta, () => this.startMatch(this.heroId), () => this.showMenu());
   }
 
   clear() {

@@ -147,6 +147,7 @@ export function updateAI(m, h, dt) {
     if (t === 'dash' && d > ab.ai.min && d < ab.ai.max && los && h.hp > h.maxHp * 0.45) m.useAbility(h, aim);
     else if (t === 'near' && reach < ab.ai.range) m.useAbility(h, aim);
     else if (t === 'skillshot' && d < ab.ai.range && los) m.useAbility(h, aim);
+    else if (t === 'area' && d < ab.ai.range + 1.5) m.useAbility(h, { ...aim, dist: Math.min(aim.dist, ab.range) });
   }
   if (a.fireT <= 0 && h.ammo >= 1 && reach < def.range && los) {
     if (m.fire(h, aim)) a.fireT = 0.28 + Math.random() * 0.4;

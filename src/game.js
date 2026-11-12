@@ -14,7 +14,7 @@ import { initAI, updateAI } from './ai.js';
 import { audio } from './audio.js';
 import { t } from './i18n.js';
 import { view } from './view.js';
-import { glow, glowMat, glowSprite } from './gfx.js';
+import { glow, glowMat, glowSprite, bubbleMat } from './gfx.js';
 
 const HERO_R = 0.6;
 const TOWER_RANGE = 10;
@@ -131,12 +131,12 @@ export class Match {
         s.bar.g.position.set(pos.x, model.height + 0.7, pos.z);
         this.scene.add(s.bar.g);
         // paint zone marker + shield bubble
-        const zone = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.4, depthWrite: false }));
+        const zone = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.3, depthWrite: false }));
         zone.rotation.x = -Math.PI / 2;
         zone.scale.setScalar(SHIELD_R);
         zone.position.set(pos.x, 0.05, pos.z);
         this.scene.add(zone);
-        const bubble = new THREE.Mesh(new THREE.SphereGeometry(s.radius + 1.3, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.12, depthWrite: false }));
+        const bubble = new THREE.Mesh(new THREE.SphereGeometry(s.radius + 1.3, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2), bubbleMat(TEAM_COLORS[team], 0.8));
         bubble.scale.y = kind === 'tower' ? 2.2 : 1.6;
         bubble.position.set(pos.x, 0, pos.z);
         this.scene.add(bubble);
@@ -150,7 +150,8 @@ export class Match {
 
   buildHeroes(playerDef) {
     const allies = [playerDef, ...shuffle(HEROES.filter((h) => h !== playerDef)).slice(0, 2)];
-    const enemies = shuffle(HEROES).slice(0, 3);
+    let enemies = shuffle(HEROES).slice(0, 3);
+    if (this.opts.comp) { const d = heroById(this.opts.comp); allies.fill(d); enemies = [d, d, d]; }
     const names = shuffle(BOT_NAMES);
     const lanes = [[0, -3.5, 15.5], [0, 3.5, 15.5]];
     let n = 0;
@@ -165,7 +166,7 @@ export class Match {
           hp: def.hp, maxHp: def.hp, level: 1, xp: 0,
           ammo: def.ammo, reload: 0, cd: 0, ult: 0, fireLock: 0, aimHold: 0,
           alive: true, respawn: 0, shield: 0, slowT: 0, slowF: 1, kx: 0, kz: 0,
-          dash: null, spin: null, sinceHit: 9, walk: 0, kick: 0, moving: 0,
+          dash: null, spin: null, spray: null, sinceHit: 9, walk: 0, kick: 0, moving: 0,
           kills: 0, deaths: 0, painted: 0, dmgDone: 0, streak: 0, streakT: 0,
           cmd: { mx: 0, mz: 0 }, animT: Math.random() * 10,
         };
@@ -182,7 +183,7 @@ export class Match {
           const inner = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.7, 32), new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], transparent: true, opacity: 0.9, depthWrite: false }));
           ring.add(inner);
         }
-        const bubble = new THREE.Mesh(new THREE.SphereGeometry(1.25, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));
+        const bubble = new THREE.Mesh(new THREE.SphereGeometry(1.5, 16, 12), bubbleMat(0xffffff, 0.65));
         bubble.visible = false;
         this.scene.add(bubble);
         h.bubble = bubble;
@@ -277,12 +278,20 @@ export class Match {
     mesh.scale.set(s, s, s * 1.6);
     mesh.rotation.y = Math.atan2(o.dx, o.dz);
     mesh.position.set(px, 1, pz);
+    mesh.add(this.halo(h.team, 2.1));
     this.scene.add(mesh);
+    if (h.kind === 'hero') this.fx.flash(px, 1.1, pz, TEAM_COLORS[h.team], 1.2);
     this.projectiles.push({
       owner: h, team: h.team, x: px, z: pz, dx: o.dx, dz: o.dz, speed: o.speed, range: o.range, dist: 0,
       dmg: this.dmgOf(h, o.dmg), dmgMinion: o.dmgMinion, hitR: o.hitR || 0.3, paintR: o.paintR, trailR: o.trailR || 0, trail: 0.3,
       pierce: !!o.pierce, knock: o.knock || 0, hit: o.hitSet || (o.pierce ? new Set() : null), homing: o.homing || null, mesh,
     });
+  }
+
+  // additive glow sprite that follows a projectile
+  halo(team, size) {
+    const s = glowSprite(TEAM_COLORS[team], size, 0.3, 0.7);
+    return s;
   }
 
   dash(h, dx, dz, distance, dur, o) {
@@ -292,6 +301,9 @@ export class Match {
   }
 
   startSpin(h, dur) { h.spin = { t: dur, acc: 0, ang: Math.random() * 6 }; }
+
+  // Sustained stream of shots inside a cone (the hero keeps facing that way and is tougher meanwhile).
+  spray(h, dx, dz, dur, spread, o) { h.spray = { t: dur, acc: 0, base: Math.atan2(dx, dz), spread, o }; h.aimHold = dur; }
 
   burst(h, x, z, radius, dmg, o = {}) {
     const team = h.team;
@@ -344,7 +356,7 @@ export class Match {
     z.x = Math.max(-HALF_W + 1, Math.min(HALF_W - 1, z.x));
     z.z = Math.max(-HALF_H + 1, Math.min(HALF_H - 1, z.z));
     z.team = z.owner.team; z.t = 0; z.acc = z.tick;
-    const color = z.type === 'heal' ? 0x7dffa8 : TEAM_COLORS[z.team];
+    const color = z.type === 'heal' || z.type === 'bloom' ? 0x7dffa8 : z.type === 'trap' ? 0xffb02e : TEAM_COLORS[z.team];
     z.mesh = new THREE.Mesh(this.zoneGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, depthWrite: false }));
     z.mesh.rotation.x = -Math.PI / 2;
     z.mesh.scale.setScalar(z.r);
@@ -354,7 +366,7 @@ export class Match {
     z.edge.position.z = 0.01;
     z.mesh.add(z.edge);
     this.scene.add(z.mesh);
-    if (z.type === 'heal') this.paintBy(z.owner, z.x, z.z, z.r * 0.92, z.team);
+    if (z.type !== 'rain') this.paintBy(z.owner, z.x, z.z, z.r * 0.92, z.team);
     this.zones.push(z);
   }
 
@@ -452,7 +464,7 @@ export class Match {
     if (h.alive && (aiming || (inp.mouse.seen && mouseAim))) {
       const type = aiming ? aiming.type : 'fire';
       const def = h.def;
-      const spec = type === 'fire' ? { aim: def.aim.type, width: def.aim.width, spread: def.aim.spread, range: def.range } : { aim: def[type].aim, width: def[type].width, radius: def[type].radius, range: def[type].range };
+      const spec = type === 'fire' ? { aim: def.aim.type, width: def.aim.width, spread: def.aim.spread, range: def.range } : { aim: def[type].aim, width: def[type].width, spread: def[type].spread, radius: def[type].radius, range: def[type].range };
       const dx = aiming ? aiming.dx : mouseAim.dx, dz = aiming ? aiming.dz : mouseAim.dz;
       const d = aiming ? aiming.mag * spec.range : Math.min(mouseAim.dist, spec.range);
       g.visible = true;
@@ -495,7 +507,7 @@ export class Match {
     const owner = src && src.kind === 'hero' ? src : null;
     if (u.kind === 'hero') {
       if (u.shield > 0) return 0;
-      if (u.spin) amount *= 0.6;
+      if (u.spin || u.spray) amount *= 0.6;
     } else if (u.kind !== 'minion') {
       if (!this.canDamage(u)) {
         if (owner && owner.isPlayer && this.annT <= 0) { this.floatText(u, t('immune'), 'info'); this.annT = 0.6; }
@@ -508,6 +520,7 @@ export class Match {
     u.hp -= amount;
     u.sinceHit = 0;
     u.flash = 0.14;
+    if (u.model && u.model.flash) u.model.flash.value = 1;
     if (owner) {
       owner.dmgDone += amount;
       owner.ult = Math.min(1, owner.ult + amount / owner.def.ultCharge);
@@ -548,7 +561,7 @@ export class Match {
     if (u.kind === 'hero') {
       u.deaths++;
       u.respawn = 4 + u.level * 0.5;
-      u.dash = null; u.spin = null; u.kx = u.kz = 0;
+      u.dash = null; u.spin = null; u.spray = null; u.kx = u.kz = 0;
       u.model.root.visible = false; u.ui.visible = false; u.ring.visible = false; u.bubble.visible = false;
       this.kills[enemy]++;
       this.paintBy(killer, u.x, u.z, 2.9, enemy);
@@ -651,7 +664,11 @@ export class Match {
         d.hit.add(u);
         this.damage(u, this.dmgOf(h, d.o.dmg), h);
       }
-      if (d.t <= 0) { h.dash = null; this.paintBy(h, h.x, h.z, d.o.paintR + 0.4, h.team); }
+      if (d.t <= 0) {
+        h.dash = null;
+        if (d.o.end) this.burst(h, h.x, h.z, d.o.end.radius, d.o.end.dmg, d.o.end);
+        else this.paintBy(h, h.x, h.z, d.o.paintR + 0.4, h.team);
+      }
     } else {
       if (h.spin) speed *= 1.25;
       h.x += h.cmd.mx * speed * dt + h.kx * dt;
@@ -677,6 +694,17 @@ export class Match {
       }
       if (s.t <= 0) h.spin = null;
     }
+    if (h.spray) {
+      const s = h.spray;
+      s.t -= dt; s.acc += dt;
+      h.dir = s.base; h.aimHold = 0.1; h.kick = Math.max(h.kick, 0.5);
+      while (s.acc > 0.055) {
+        s.acc -= 0.055;
+        const ang = s.base + (Math.random() - 0.5) * 2 * s.spread;
+        this.shoot(h, { ...s.o, dx: Math.sin(ang), dz: Math.cos(ang) });
+      }
+      if (s.t <= 0) h.spray = null;
+    }
 
     // facing
     let want = h.dir;
@@ -692,7 +720,7 @@ export class Match {
     animateHero(m, h.animT, dt, { moving: h.moving, kick: Math.min(1, h.kick), cheer: this.state === 'ended' && this.result && this.result.winner === h.team });
     m.root.position.set(h.x, h.dash ? 0.25 : 0, h.z);
     h.ring.position.set(h.x, 0.06, h.z);
-    h.ui.position.set(h.x, 3.6, h.z);
+    h.ui.position.set(h.x, 3.9, h.z);
     h.bar.set(h.hp / h.maxHp);
     if (h.ammoBar) h.ammoBar.set((h.ammo + (h.ammo < h.def.ammo ? h.reload : 0)) / h.def.ammo);
     h.bubble.visible = h.shield > 0;
@@ -770,7 +798,7 @@ export class Match {
     if (!s.alive) return;
     if (recalc) s.enemyShare = this.paint.share(s.x, s.z, SHIELD_R, 1 - s.team);
     const open = this.canDamage(s);
-    s.bubble.material.opacity = open ? 0.03 + 0.17 * (1 - s.enemyShare) : 0.3;
+    s.bubble.material.uniforms.uOpacity.value = open ? 0.06 + 0.4 * (1 - s.enemyShare) : 0.7;
     s.bubble.rotation.y += dt * 0.4;
     s.bar.set(s.hp / s.maxHp);
     s.flash = Math.max(0, s.flash - dt);
@@ -840,6 +868,7 @@ export class Match {
       if (dead) {
         this.paintBy(p.owner, Math.max(-HALF_W, Math.min(HALF_W, p.x)), Math.max(-HALF_H, Math.min(HALF_H, p.z)), p.paintR, p.team);
         this.fx.splash(p.x, 0.5, p.z, TEAM_COLORS[p.team], 5, 4);
+        this.fx.flash(p.x, 0.6, p.z, TEAM_COLORS[p.team], 1.7);
         if (p.owner.isPlayer) audio.splat(0.5);
         this.scene.remove(p.mesh);
         arr.splice(i, 1);
@@ -872,20 +901,21 @@ export class Match {
       const col = TEAM_COLORS[z.team];
       if (z.acc >= z.tick) {
         z.acc = 0;
-        if (z.type === 'heal') {
+        if (z.heal) {
           for (const h of this.heroes) if (h.team === z.team && h.alive && Math.hypot(h.x - z.x, h.z - z.z) < z.r) this.heal(h, this.dmgOf(z.owner, z.heal));
           for (let k = 0; k < 4; k++) { const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * z.r; this.fx.splash(z.x + Math.cos(a) * r, 0.3, z.z + Math.sin(a) * r, 0x9dffc0, 1, 4); }
-        } else {
-          for (let k = 0; k < 4; k++) {
-            const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * (z.r - 1);
-            const x = z.x + Math.cos(a) * r, zz = z.z + Math.sin(a) * r;
-            this.paintBy(z.owner, x, zz, 1.5, z.team);
-            this.fx.splash(x, 0.4, zz, col, 5, 5);
-          }
+        }
+        for (let k = 0; k < (z.paintN || 0); k++) {
+          const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * (z.r - 1);
+          const x = z.x + Math.cos(a) * r, zz = z.z + Math.sin(a) * r;
+          this.paintBy(z.owner, x, zz, 1.5, z.team);
+          this.fx.splash(x, 0.4, zz, col, 5, 5);
+        }
+        if (z.dmg) {
           for (const u of this.targets[1 - z.team]) {
             if (Math.hypot(u.x - z.x, u.z - z.z) > z.r + u.radius) continue;
             this.damage(u, this.dmgOf(z.owner, z.dmg), z.owner);
-            if (u.kind === 'hero') { u.slowT = 0.5; u.slowF = 0.75; }
+            if (z.slow && u.kind === 'hero') { u.slowT = 0.7; u.slowF = z.slow; }
           }
         }
       }
@@ -939,7 +969,7 @@ export class Match {
         this.hud.announce('');
         audio.startMusic();
       }
-      for (const h of this.heroes) { h.animT += dt; animateHero(h.model, h.animT, dt, { moving: 0, kick: 0 }); h.ring.position.set(h.x, 0.06, h.z); h.ui.position.set(h.x, 3.6, h.z); h.bar.set(1); if (h.ammoBar) h.ammoBar.set(1); }
+      for (const h of this.heroes) { h.animT += dt; animateHero(h.model, h.animT, dt, { moving: 0, kick: 0 }); h.ring.position.set(h.x, 0.06, h.z); h.ui.position.set(h.x, 3.9, h.z); h.bar.set(1); if (h.ammoBar) h.ammoBar.set(1); }
       for (const s of this.structures) this.updateStructure(s, 0, false);
       this.updateCamera(dt);
       this.arena.update(this.time, this.cam);
@@ -982,7 +1012,10 @@ export class Match {
       for (const s of this.structures) if (s.team === team && s.alive) list.push(s);
     }
 
-    for (const h of this.heroes) {
+    // alternate the update order every step so neither team always paints last
+    this.tick = (this.tick || 0) + 1;
+    for (let i = 0; i < this.heroes.length; i++) {
+      const h = this.heroes[this.tick & 1 ? i : this.heroes.length - 1 - i];
       this.updateHero(h, dt);
       if (this.state === 'play' && h.alive) this.addXp(h, 3 * dt);
     }
@@ -1009,7 +1042,7 @@ export class Match {
     const p = this.player;
     let tx = p.x, tz = p.z;
     if (this.state === 'ended' && this.result.reason === 'core') { const c = this.cores[1 - this.result.winner]; tx = c.x; tz = c.z; }
-    tx = Math.max(-HALF_W + 11, Math.min(HALF_W - 11, tx));
+    tx = Math.max(-HALF_W + 9, Math.min(HALF_W - 9, tx));
     tz = Math.max(-HALF_H + 3, Math.min(HALF_H - 2, tz));
     const k = Math.min(1, dt * 6);
     this.cam.x += (tx - this.cam.x) * k;
@@ -1017,7 +1050,7 @@ export class Match {
     const intro = this.state === 'countdown' ? Math.max(0, (this.count - 0.6) / 3) : 0;
     const zoom = this.camZoom * (1 + intro * 0.9);
     const sh = this.fx.shake * this.fx.shake * 0.6;
-    this.camera.position.set(this.cam.x + (Math.random() - 0.5) * sh, 21 * zoom, this.cam.z + 14.5 * zoom + (Math.random() - 0.5) * sh);
+    this.camera.position.set(this.cam.x + (Math.random() - 0.5) * sh, 17.6 * zoom, this.cam.z + 12 * zoom + (Math.random() - 0.5) * sh);
     this.camera.lookAt(this.cam.x, 0, this.cam.z - 0.6);
   }
 

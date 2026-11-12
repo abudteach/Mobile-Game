@@ -15,18 +15,37 @@ deiner Farbe ist, prallt der meiste Schaden ab. Wer den Kern zerstört, gewinnt 
 das Team mit mehr Farbe auf dem Feld.
 
 ![Match](docs/screenshots/match-1.png)
-![Menü](docs/screenshots/menu-mochi.png)
+![Menü](docs/screenshots/menu.png)
 
 ## Helden
 
+Zehn Helden, alle nach eigenen Charakter-Designs. Das Artwork liegt in `src/assets/heroes/` und wird im Menü, auf den
+Karten und im Ergebnis-Screen gezeigt. Im Match laufen vereinfachte 3D-Figuren, die im Code nach den Designs gebaut
+sind (`src/models.js`).
+
 | Held | Rolle | Angriff | Fähigkeit | Ulti |
 | --- | --- | --- | --- | --- |
-| **Riko** | Flitzer | Doppel-Spray | Kickflip-Dash | Farb-Tornado |
-| **Bombo** | Tank | Klecks-Kanone (Fächer) | Bodenstampfer | Mega-Bombe |
-| **Kira** | Scharfschützin | Fern-Tropfen | Farbstrahl | Farbregen |
-| **Mochi** | Supporterin | Blubber-Blasen | Heil-Pfütze | Tsunami |
+| **Jaro** | Flitzer | Doppel-Spray | Schattensprint | Farb-Tornado |
+| **Pippa** | Gärtnerin | Samen-Salve | Heil-Pfütze | Blütenmeer |
+| **Zyro** | Kämpfer | Splitter-Fächer | Kristallsturz | Kristallhagel |
+| **Byte** | Tüftler | Schnellfeuer | Farbmine | Laser-Gitter |
+| **Melli** | Ingenieurin | Honig-Schrot | Klebefalle | Waben-Bombe |
+| **Nimbi** | Supporterin | Wolken-Blasen | Regenpfütze | Wolkenbruch |
+| **Luma** | Scharfschützin | Mond-Tropfen | Mondstrahl | Farbregen |
+| **Bruno** | Tank | Klecks-Kanone | Bodenstampfer | Hochdruck |
+| **Skye** | Fliegerin | Feder-Salve | Sturzflug | Luftschlag |
+| **Grom** | Koloss | Wasserkugel | Wasserschild | Flutwelle |
 
-Alle Figuren, Namen und Modelle sind eigene Entwürfe (prozedural aus 3D-Grundformen gebaut, keine externen Assets).
+### Echte 3D-Modelle aus den Designs
+
+Die Figuren im Match sind bewusst austauschbar gehalten. Für Modelle, die 1:1 wie das Artwork aussehen, braucht es
+pro Held eine `.glb`-Datei (Modell + Skelett + Animationen: Idle, Laufen, Angriff). Wege dorthin:
+
+- Bild-zu-3D-Dienst (z. B. Meshy, Tripo, Rodin) mit dem Artwork als Vorlage, danach Auto-Rigging (z. B. Mixamo)
+- oder ein 3D-Artist, der die Figuren in Blender modelliert
+
+Die fertigen Dateien kommen nach `public/models/<id>.glb` und werden dann über den `GLTFLoader` von Three.js statt
+der Code-Figuren geladen.
 
 ## Starten
 
@@ -42,8 +61,8 @@ Ziehen = selbst zielen, Loslassen = Schuss.
 
 **Steuerung PC:** WASD laufen, Maus zielen + schießen, Leertaste/Rechtsklick Fähigkeit, E Ulti.
 
-Test-Parameter in der URL: `?start=1&hero=kira` (Menü überspringen), `&autoplay=1` (Bot spielt für dich),
-`&lang=en` / `&lang=de`.
+Test-Parameter in der URL: `?start=1&hero=luma` (Menü überspringen), `&autoplay=1` (Bot spielt für dich),
+`&lang=en` / `&lang=de`, `?models=1` (alle 3D-Figuren nebeneinander).
 
 ## Aufbau
 
@@ -53,9 +72,11 @@ src/
   game.js     Match-Simulation: Helden, Blobs, Türme, Kern, Projektile, Zonen, Kamera
   heroes.js   Helden-Daten und ihre Angriffe/Fähigkeiten (hier neue Helden hinzufügen)
   models.js   3D-Modelle der Figuren und Gebäude + Animation
+  gfx.js      Render-Pipeline (Bloom, Tone-Mapping), Glow- und Rim-Light-Helfer
+  view.js     Querformat-Bühne (dreht das Spiel, wenn das Handy hochkant gehalten wird)
   ai.js       Bot-KI (Rückzug, Kampf, Farmen, Pushen, Malen)
   paint.js    Farb-System: Logik-Raster + Canvas-Textur auf dem Boden
-  world.js    Arena, Kollision, Wegfindung um Hindernisse
+  world.js    Arena (Boden-Shader, Deckung, Tribüne, Deko), Kollision, Wegfindung um Hindernisse
   input.js    Touch-Sticks + Tastatur/Maus
   hud.js      Anzeige im Match (Farb-Balken, Minimap, Killfeed ...)
   menu.js     Heldenauswahl und Ergebnis-Screen
@@ -103,5 +124,5 @@ Was ihr für den Upload braucht:
 - Echter Online-Multiplayer (aktuell spielt man mit und gegen Bots)
 - Fortschritt: freischaltbare Helden, Skins, Trophäen-Liga, tägliche Aufgaben
 - Mehr Karten und Spielmodi, mehr Helden
-- Handgemachte 3D-Modelle/Animationen, Musik und Sounddesign
+- 3D-Modelle, die 1:1 dem Artwork entsprechen (siehe oben), Musik und Sounddesign
 - Tests auf echten Geräten (bisher nur im Desktop-Browser und in der Handy-Emulation geprüft)

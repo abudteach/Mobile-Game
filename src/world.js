@@ -136,8 +136,8 @@ export function buildSky(scene) {
       float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
       void main(){
         vec3 d = normalize(vP);
-        vec3 c = mix(vec3(1.05, 0.36, 0.30), vec3(0.42, 0.10, 0.52), smoothstep(-0.05, 0.16, d.y));
-        c = mix(c, vec3(0.045, 0.03, 0.17), smoothstep(0.10, 0.62, d.y));
+        vec3 c = mix(vec3(0.62, 0.16, 0.36), vec3(0.20, 0.06, 0.34), smoothstep(-0.05, 0.14, d.y));
+        c = mix(c, vec3(0.03, 0.02, 0.11), smoothstep(0.08, 0.5, d.y));
         vec2 g = floor(d.xz / max(d.y, 0.05) * 26.0);
         c += vec3(0.9) * step(0.985, h21(g)) * smoothstep(0.25, 0.6, d.y);
         gl_FragColor = vec4(c, 1.0);
@@ -156,7 +156,7 @@ export function buildSky(scene) {
       c.fillRect(x, y, 9, 7);
     }
   });
-  const mat = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(1.5, 1.5, 1.5) });
+  const mat = new THREE.MeshBasicMaterial({ map: tex, color: new THREE.Color(0.55, 0.5, 0.75) });
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, 46);
   const o = new THREE.Object3D();
   for (let i = 0; i < 46; i++) {
@@ -197,7 +197,7 @@ export function buildArena(scene, paint) {
   const time = { value: 0 };
 
   // ---- arena floor: asphalt + paint canvas, with a bevel/gloss effect on paint edges ----
-  const floorMat = new THREE.MeshStandardMaterial({ map: paint.texture, color: 0xa4a4b6, roughness: 0.82, metalness: 0 });
+  const floorMat = new THREE.MeshStandardMaterial({ map: paint.texture, color: 0xc6c6d2, roughness: 0.82, metalness: 0 });
   floorMat.onBeforeCompile = (sh) => {
     sh.uniforms.uTexel = { value: new THREE.Vector2(1 / paint.canvas.width, 1 / paint.canvas.height) };
     sh.uniforms.uTime = time;
@@ -207,7 +207,7 @@ export function buildArena(scene, paint) {
         float paintMask(vec2 uv){ vec3 c = texture2D(map, uv).rgb; float s = max(c.r, max(c.g, c.b)) - min(c.r, min(c.g, c.b)); return smoothstep(0.30, 0.55, s); }
         float h21(vec2 p){ p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }`)
       .replace('#include <map_fragment>', `#include <map_fragment>
-        vec2 pe = uTexel * 1.7;
+        vec2 pe = uTexel * 2.2;
         float pm = paintMask(vMapUv);
         vec2 pg = vec2(paintMask(vMapUv + vec2(pe.x, 0.0)) - paintMask(vMapUv - vec2(pe.x, 0.0)), paintMask(vMapUv + vec2(0.0, pe.y)) - paintMask(vMapUv - vec2(0.0, pe.y)));
         float bevel = dot(pg, vec2(0.6, -0.8));
@@ -215,8 +215,8 @@ export function buildArena(scene, paint) {
         diffuseColor.rgb *= 1.0 - 0.5 * clamp(-bevel, 0.0, 1.0);`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
         vec2 cell = floor(vMapUv / uTexel / 1.5);
-        float spark = step(0.993, h21(cell)) * (0.5 + 0.5 * sin(uTime * 3.0 + h21(cell + 7.0) * 40.0));
-        totalEmissiveRadiance += paintCol * pm * 0.1 + vec3(1.0) * (clamp(bevel, 0.0, 1.0) * 0.6 + spark * pm * 0.5);`);
+        float spark = step(0.9965, h21(cell)) * (0.5 + 0.5 * sin(uTime * 3.0 + h21(cell + 7.0) * 40.0));
+        totalEmissiveRadiance += paintCol * pm * 0.16 + vec3(1.0) * (clamp(bevel, 0.0, 1.0) * 0.42 + spark * pm * 0.45);`);
   };
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(MAP_W, MAP_H), floorMat);
   floor.rotation.x = -Math.PI / 2;
@@ -285,12 +285,12 @@ export function buildArena(scene, paint) {
     pad.rotation.y = Math.PI / 6;
     pad.receiveShadow = true;
     scene.add(pad);
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.75, 0.09, 8, 6), glowMat(col, 1.5));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(2.75, 0.09, 8, 6), glowMat(col, 1.15));
     ring.rotation.x = Math.PI / 2; ring.rotation.z = Math.PI / 6;
     ring.position.set(sx, 0.2, 0);
     scene.add(ring);
     const beamTex = canvasTexture(8, 64, (c, w, h) => { const g = c.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,1)'); c.fillStyle = g; c.fillRect(0, 0, w, h); });
-    const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 5, 24, 1, true), new THREE.MeshBasicMaterial({ map: beamTex, color: glow(col, 0.9), transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 5, 24, 1, true), new THREE.MeshBasicMaterial({ map: beamTex, color: new THREE.Color(col), transparent: true, opacity: 0.12, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
     beam.position.set(sx, 2.6, 0);
     scene.add(beam);
     beams.push(beam);
@@ -427,7 +427,7 @@ export function buildArena(scene, paint) {
       sun.target.position.set(focus.x, 0, focus.z);
       for (const b of beams) {
         if (b.userData.y0) { b.rotation.y = t * 1.2; b.position.y = b.userData.y0 + Math.sin(t * 1.6) * 0.3; }
-        else b.material.opacity = 0.24 + Math.sin(t * 2.2) * 0.08;
+        else b.material.opacity = 0.1 + Math.sin(t * 2.2) * 0.04;
       }
     },
   };
