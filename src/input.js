@@ -85,6 +85,7 @@ export class Input {
       this.keys.add(k);
       if (k === ' ' || k === 'q') { this.actions.push({ type: 'ability', aimed: false, mouse: true }); e.preventDefault(); }
       if (k === 'e' || k === 'r' || k === 'f') this.actions.push({ type: 'ult', aimed: false, mouse: true });
+      if (k === '1' || k === '2' || k === '3') this.actions.push({ type: 'talent', i: +k - 1 });
     });
     this.on(window, 'keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     this.on(window, 'blur', () => { this.keys.clear(); this.mouse.down = false; });

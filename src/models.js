@@ -161,12 +161,13 @@ export function animateHero(m, t, dt, s) {
   m.tiltNow += (want - m.tiltNow) * Math.min(1, dt * 10);
   const stretch = 0.96 / Math.cos(CAM_PITCH - m.tiltNow);
   m.tilt.rotation.x = -m.tiltNow;
-  // face left/right with a quick flip
+  // face left/right: flip at once (with a small pop), but not more than a few times per second
   const dx = Math.sin(s.dir ?? 0);
-  if (dx > 0.25) m.flipTo = 1; else if (dx < -0.25) m.flipTo = -1;
-  m.flip += ((m.flipTo ?? 1) - m.flip) * Math.min(1, dt * 14);
-  const spin = s.spin ? Math.cos(t * 22) : 1;
-  const fx = (Math.abs(m.flip) < 0.15 ? 0.15 * Math.sign(m.flip || 1) : m.flip) * spin;
+  m.flipCd = (m.flipCd || 0) - dt;
+  m.flipPop = Math.max(0, (m.flipPop || 0) - dt * 7);
+  const wantFlip = dx > 0.4 ? 1 : dx < -0.4 ? -1 : m.flip;
+  if (wantFlip !== m.flip && m.flipCd <= 0) { m.flip = wantFlip; m.flipCd = 0.4; m.flipPop = 1; }
+  const fx = m.flip * (1 - 0.2 * m.flipPop) * (s.spin ? Math.cos(t * 22) : 1);
   m.tilt.scale.set(fx, stretch, 1);
   m.topY = m.H * 0.95 * stretch * Math.cos(m.tiltNow);
   m.topZ = -m.H * 0.95 * stretch * Math.sin(m.tiltNow);
@@ -196,6 +197,35 @@ export function buildMinion(team) {
   }
   curFlash = undefined;
   return { root, rig, flash };
+}
+
+// ---------- gadgets ----------
+export function buildTurret(team) {
+  const flash = { value: 0 };
+  curFlash = flash;
+  const root = new THREE.Group();
+  const rig = grp(root);
+  const core = basic(glow(TEAM_COLORS[team], 1.3));
+  for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2; add(rig, cyl(0.06, 0.09, 0.9, 6), toon(0x33334f), { p: [Math.cos(a) * 0.35, 0.4, Math.sin(a) * 0.35], r: [Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5], outline: false }); }
+  add(rig, cyl(0.28, 0.34, 0.3, 10), toon(0xf1e6d0), { p: [0, 0.85, 0] });
+  const head = grp(rig, 0, 1.2, 0);
+  add(head, sphere(0.36, 14, 10), toon(0xf1e6d0), { s: [1, 0.85, 1] });
+  det(head, sphere(0.22, 10, 8), core, { p: [0, 0.16, -0.08] });
+  add(head, cyl(0.1, 0.13, 0.7, 8), toon(0x33334f), { p: [0, 0, 0.45], r: [Math.PI / 2, 0, 0], outline: false });
+  det(head, torus(0.13, 0.04), core, { p: [0, 0, 0.8] });
+  det(head, cyl(0.37, 0.37, 0.08, 14), toon(0xffb21f), { p: [0, -0.1, 0] });
+  curFlash = undefined;
+  return { root, rig, head, flash };
+}
+
+export function buildWell() {
+  curFlash = undefined;
+  const root = new THREE.Group();
+  add(root, cyl(1.05, 1.25, 0.45, 12), toon(0x5a62a3), { p: [0, 0.22, 0], outline: 0.05 });
+  det(root, torus(1.08, 0.09), toon(0xc3caf0), { p: [0, 0.46, 0], r: [Math.PI / 2, 0, 0], shadow: true });
+  const liquid = det(root, cyl(0.98, 0.98, 0.1, 20), basic(new THREE.Color(0xdfe6ff)), { p: [0, 0.42, 0] });
+  const jet = det(root, cone(0.22, 1.4, 10), liquid.material, { p: [0, 1.1, 0] });
+  return { root, liquid, jet };
 }
 
 // ---------- structures ----------

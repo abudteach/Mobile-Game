@@ -8,7 +8,7 @@ Die Idee kombiniert drei Genres zu einem eigenen Spiel:
 | --- | --- |
 | Top-down Hero-Shooter | Kurze 3-Minuten-Matches, Twin-Stick-Steuerung, Munition + Ulti, die sich durch Treffer auflädt |
 | Farb-Shooter | Jeder Schuss färbt den Boden. Eigene Farbe = schneller laufen, schneller nachladen, heilen. Gegnerfarbe bremst und schadet |
-| MOBA | Lane mit Blob-Wellen, Turm und Kern pro Team, Fähigkeiten mit Cooldown, Level-ups im Match |
+| MOBA | Lane mit Blob-Wellen, Turm und Kern pro Team, neutrale Ziele, Fähigkeiten mit Cooldown, Level-ups und Talente im Match |
 
 **Der Twist, der alles verbindet:** Türme und Kern haben ein *Farb-Schild*. Solange der Boden um sie herum nicht in
 deiner Farbe ist, prallt der meiste Schaden ab. Wer den Kern zerstört, gewinnt sofort – sonst gewinnt nach 3 Minuten
@@ -19,33 +19,42 @@ das Team mit mehr Farbe auf dem Feld.
 
 ## Helden
 
-Zehn Helden, alle nach eigenen Charakter-Designs. Das Artwork liegt in `src/assets/heroes/` und wird im Menü, auf den
-Karten und im Ergebnis-Screen gezeigt. Im Match laufen vereinfachte 3D-Figuren, die im Code nach den Designs gebaut
-sind (`src/models.js`).
+Zehn Helden nach eigenen Charakter-Designs. Jeder hat eine klare Rolle, eine passive Stärke und drei Fähigkeiten,
+die kein anderer hat (`src/heroes.js`).
 
-| Held | Rolle | Angriff | Fähigkeit | Ulti |
-| --- | --- | --- | --- | --- |
-| **Jaro** | Flitzer | Doppel-Spray | Schattensprint | Farb-Tornado |
-| **Pippa** | Gärtnerin | Samen-Salve | Heil-Pfütze | Blütenmeer |
-| **Zyro** | Kämpfer | Splitter-Fächer | Kristallsturz | Kristallhagel |
-| **Byte** | Tüftler | Schnellfeuer | Farbmine | Laser-Gitter |
-| **Melli** | Ingenieurin | Honig-Schrot | Klebefalle | Waben-Bombe |
-| **Nimbi** | Supporterin | Wolken-Blasen | Regenpfütze | Wolkenbruch |
-| **Luma** | Scharfschützin | Mond-Tropfen | Mondstrahl | Farbregen |
-| **Bruno** | Tank | Klecks-Kanone | Bodenstampfer | Hochdruck |
-| **Skye** | Fliegerin | Feder-Salve | Sturzflug | Luftschlag |
-| **Grom** | Koloss | Wasserkugel | Wasserschild | Flutwelle |
+| Held | Rolle | Passiv | Angriff | Fähigkeit | Ulti |
+| --- | --- | --- | --- | --- | --- |
+| **Jaro** | Assassine | Auf eigener Farbe extra schnell, K.O. setzt Sprint zurück | Doppel-Spray | Schattensprint | Farb-Tornado |
+| **Pippa** | Heilerin | Heilt Verbündete in ihrer Nähe | Samen-Salve | Heil-Pfütze | Blütenmeer |
+| **Zyro** | Kämpfer | Schild wächst nach, wenn er nicht getroffen wird | Splitter-Fächer | Kristallsturz | Kristallhagel |
+| **Byte** | Tüftler | Jeder 4. Schuss ist aufgeladen | Schnellfeuer | Geschützturm | Laser-Gitter |
+| **Melli** | Kontrolle | Treffer verlangsamen | Honig-Schrot | Klebefalle | Waben-Bombe |
+| **Nimbi** | Unterstützerin | Rettet Verbündete mit einem Schild | Wolkenball (heilt Freunde) | Rückenwind | Wolkenbruch |
+| **Luma** | Scharfschützin | Schüsse werden mit der Distanz stärker | Mond-Tropfen | Mondstrahl | Farbregen |
+| **Bruno** | Tank | Unter halbem Leben 30 % weniger Schaden | Klecks-Kanone | Bodenstampfer | Hochdruck |
+| **Skye** | Fliegerin | Nach dem Sturzflug kurz viel schneller | Feder-Salve | Sturzflug (über Deckung) | Luftschlag |
+| **Grom** | Koloss | Kann nicht verlangsamt oder weggestoßen werden | Wasserkugel | Wasserschild | Erdbeben |
 
-### Echte 3D-Modelle aus den Designs
+## Strategie
 
-Die Figuren im Match sind bewusst austauschbar gehalten. Für Modelle, die 1:1 wie das Artwork aussehen, braucht es
-pro Held eine `.glb`-Datei (Modell + Skelett + Animationen: Idle, Laufen, Angriff). Wege dorthin:
+- **Drei Wege:** Mitte (Lane mit Blob-Wellen, Turm, Kern) und oben/unten je eine **Farbquelle**.
+- **Farbquellen:** Wer den Ring um eine Quelle zu 60 % färbt, besitzt sie. Eine eigene Quelle spritzt regelmäßig
+  Farbe in die Umgebung, schickt einen zusätzlichen Blob pro Welle und lässt die Ultis des Teams 20 % schneller laden.
+- **Talente:** Auf Level 3, 5 und 7 wählt jeder Held eines von drei Talenten (Schaden, Leben, Tempo, Nachladen,
+  Farbradius, Cooldown, Lebensraub, Ulti-Ladung). So entsteht in jedem Match ein eigener Build.
+- **Farb-Schild:** Türme und Kern nehmen nur dann vollen Schaden, wenn der Boden um sie herum in deiner Farbe ist.
+- **Turm-Regel:** Türme schießen zuerst auf Blobs. Ohne Blobs (oder Bytes Geschütz) als Deckung trifft es dich.
 
-- Bild-zu-3D-Dienst (z. B. Meshy, Tripo, Rodin) mit dem Artwork als Vorlage, danach Auto-Rigging (z. B. Mixamo)
-- oder ein 3D-Artist, der die Figuren in Blender modelliert
+## Figuren im Match
 
-Die fertigen Dateien kommen nach `public/models/<id>.glb` und werden dann über den `GLTFLoader` von Three.js statt
-der Code-Figuren geladen.
+Im Match ist jeder Held sein eigenes Artwork (`src/assets/heroes/`): eine ausgeschnittene Figur, die immer zur
+Kamera schaut und per Shader animiert wird (Laufen, Armschwung, Atmen, Neigen, Treffer-Aufleuchten). Eine kleine
+Farb-Drohne in Teamfarbe zeigt, wohin der Held zielt. Dadurch sehen die Figuren im Spiel genauso aus wie in der
+Auswahl – es sind aber keine echten 3D-Modelle: man sieht sie immer von vorn.
+
+Für echte, drehbare 3D-Modelle braucht es pro Held eine `.glb`-Datei (Modell + Skelett + Animationen), z. B. aus
+einem Bild-zu-3D-Dienst (Meshy, Tripo, Rodin) mit Auto-Rigging oder von einem 3D-Artist. Die Dateien kämen nach
+`public/models/<id>.glb` und würden über den `GLTFLoader` von Three.js statt der Artwork-Figuren geladen.
 
 ## Starten
 
@@ -59,10 +68,10 @@ npm run build:single   # eine einzelne, eigenständige index.html nach dist-sing
 **Steuerung Handy:** linker Daumen = Lauf-Stick. Rechts: Angriff, Fähigkeit, Ulti. Antippen = Auto-Zielen,
 Ziehen = selbst zielen, Loslassen = Schuss.
 
-**Steuerung PC:** WASD laufen, Maus zielen + schießen, Leertaste/Rechtsklick Fähigkeit, E Ulti.
+**Steuerung PC:** WASD laufen, Maus zielen + schießen, Leertaste/Rechtsklick Fähigkeit, E Ulti, 1–3 Talent wählen.
 
 Test-Parameter in der URL: `?start=1&hero=luma` (Menü überspringen), `&autoplay=1` (Bot spielt für dich),
-`&lang=en` / `&lang=de`, `?models=1` (alle 3D-Figuren nebeneinander).
+`&lang=en` / `&lang=de`, `?models=1` (alle Figuren nebeneinander).
 
 ## Aufbau
 
@@ -71,7 +80,7 @@ src/
   main.js     App-Start, Render-Loop, Wechsel Menü <-> Match, automatische Qualitätsanpassung
   game.js     Match-Simulation: Helden, Blobs, Türme, Kern, Projektile, Zonen, Kamera
   heroes.js   Helden-Daten und ihre Angriffe/Fähigkeiten (hier neue Helden hinzufügen)
-  models.js   3D-Modelle der Figuren und Gebäude + Animation
+  models.js   Helden-Figuren aus dem Artwork (Shader-Animation), Blobs, Türme, Kern, Geschütz, Farbquelle
   gfx.js      Render-Pipeline (Bloom, Tone-Mapping), Glow- und Rim-Light-Helfer
   view.js     Querformat-Bühne (dreht das Spiel, wenn das Handy hochkant gehalten wird)
   ai.js       Bot-KI (Rückzug, Kampf, Farmen, Pushen, Malen)
@@ -124,5 +133,5 @@ Was ihr für den Upload braucht:
 - Echter Online-Multiplayer (aktuell spielt man mit und gegen Bots)
 - Fortschritt: freischaltbare Helden, Skins, Trophäen-Liga, tägliche Aufgaben
 - Mehr Karten und Spielmodi, mehr Helden
-- 3D-Modelle, die 1:1 dem Artwork entsprechen (siehe oben), Musik und Sounddesign
+- Echte 3D-Modelle der Helden (siehe oben), Musik und Sounddesign
 - Tests auf echten Geräten (bisher nur im Desktop-Browser und in der Handy-Emulation geprüft)

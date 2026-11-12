@@ -5,14 +5,14 @@ import {
 } from './config.js';
 import { Paint } from './paint.js';
 import { buildArena, resolveCollisions, steer, segBox, pointInBox, clearLine, BOXES } from './world.js';
-import { buildHero, animateHero, buildMinion, buildTower, buildCore } from './models.js';
-import { HEROES, heroById } from './heroes.js';
+import { buildHero, animateHero, buildMinion, buildTower, buildCore, buildTurret, buildWell } from './models.js';
+import { HEROES, heroById, TALENTS, TALENT_LEVELS } from './heroes.js';
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
 import { Input } from './input.js';
 import { initAI, updateAI } from './ai.js';
 import { audio } from './audio.js';
-import { t } from './i18n.js';
+import { t, tr } from './i18n.js';
 import { view } from './view.js';
 import { glow, glowMat, glowSprite, bubbleMat } from './gfx.js';
 
@@ -108,10 +108,12 @@ export class Match {
     this.ringGeo = new THREE.RingGeometry(0.93, 1, 48);
 
     this.buildStructures();
+    this.buildWells();
+    this.colliders = [...this.structures, ...this.wells]; // round things units walk around
     this.buildHeroes(heroById(heroId));
     this.buildAim();
     this.cam = { x: this.player.x, z: this.player.z };
-    this.hud.tips([t('tip1'), t('tip2'), t('tip3')]);
+    this.hud.tips([t('tip1'), t('tip4'), t('tip3')]);
     this.resize();
   }
 
@@ -148,12 +150,64 @@ export class Match {
     }
   }
 
+  // Paint wells: two neutral objectives. Paint most of the ring to own a well; an owned well
+  // sprays your colour around, adds a blob to your waves and speeds up your team's ults.
+  buildWells() {
+    this.wells = [-12.5, 12.5].map((z) => {
+      const model = buildWell();
+      model.root.position.set(0, 0, z);
+      this.scene.add(model.root);
+      const ring = new THREE.Mesh(this.ringGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.scale.setScalar(3.6);
+      ring.position.set(0, 0.05, z);
+      this.scene.add(ring);
+      this.paint.block(0, z, 1.6, 1.6);
+      return { kind: 'well', alive: true, x: 0, z, r: 3.6, radius: 1.3, owner: -1, team: -1, share: [0, 0], spoutT: 2, model, ring };
+    });
+  }
+
+  wellsOwned(team) { let n = 0; for (const w of this.wells) if (w.owner === team) n++; return n; }
+
+  updateWells(dt, recalc) {
+    for (const w of this.wells) {
+      if (recalc && this.state === 'play') {
+        for (let team = 0; team < 2; team++) {
+          w.share[team] = this.paint.share(w.x, w.z, w.r, team);
+          if (w.owner === team || w.share[team] < 0.6) continue;
+          const lost = w.owner === this.player.team;
+          w.owner = w.team = team;
+          w.spoutT = 1;
+          const col = glow(TEAM_COLORS[team], 1.3);
+          w.model.liquid.material.color.copy(col);
+          w.ring.material.color.set(TEAM_COLORS[team]);
+          w.ring.material.opacity = 0.8;
+          this.fx.ring(w.x, w.z, 6, TEAM_COLORS[team], 0.7);
+          this.fx.splash(w.x, 1.2, w.z, TEAM_COLORS[team], 30, 9);
+          if (team === this.player.team) { this.announce(t('wellWon'), '#6bff8a', t('wellBonus')); audio.levelUp(); }
+          else if (lost) { this.announce(t('wellLost'), '#ff5d6c'); audio.death(); }
+        }
+      }
+      w.model.liquid.position.y = 0.42 + Math.sin(this.time * 3 + w.z) * 0.04;
+      w.model.jet.scale.y = w.owner >= 0 ? 1 + Math.sin(this.time * 6) * 0.15 : 0.35;
+      if (w.owner < 0 || this.state !== 'play') continue;
+      w.spoutT -= dt;
+      if (w.spoutT <= 0) {
+        w.spoutT = 5;
+        for (let i = 0; i < 4; i++) {
+          const a = Math.random() * 6.28, r = 4 + Math.random() * 5;
+          this.lob(w, w.x + Math.cos(a) * r, w.z + Math.sin(a) * r, { time: 0.9, dmg: 140, radius: 1.9, paintR: 2.2, size: 0.4 });
+        }
+      }
+    }
+  }
+
   buildHeroes(playerDef) {
     const allies = [playerDef, ...shuffle(HEROES.filter((h) => h !== playerDef)).slice(0, 2)];
     let enemies = shuffle(HEROES).slice(0, 3);
     if (this.opts.comp) { const d = heroById(this.opts.comp); allies.fill(d); enemies = [d, d, d]; }
     const names = shuffle(BOT_NAMES);
-    const lanes = [[0, -3.5, 15.5], [0, 3.5, 15.5]];
+    const lanes = [[0, -12.5, 12.5], [0, -12.5, 12.5]]; // mid, top well, bottom well
     let n = 0;
     for (let team = 0; team < 2; team++) {
       for (let slot = 0; slot < 3; slot++) {
@@ -166,7 +220,9 @@ export class Match {
           hp: def.hp, maxHp: def.hp, level: 1, xp: 0,
           ammo: def.ammo, reload: 0, cd: 0, ult: 0, fireLock: 0, aimHold: 0,
           alive: true, respawn: 0, shield: 0, slowT: 0, slowF: 1, kx: 0, kz: 0,
-          dash: null, spin: null, spray: null, sinceHit: 9, walk: 0, kick: 0, moving: 0,
+          dash: null, spin: null, spray: null, sinceHit: 9,
+          mod: { dmg: 1, hp: 1, speed: 1, reload: 1, paint: 1, cdr: 1, vamp: 0, ult: 1 }, talents: [], offer: null,
+          hasteT: 0, barrier: 0, guardCd: 0, auraT: 0, shots: 0, cdMax: def.ability.cd, turret: null, walk: 0, kick: 0, moving: 0,
           kills: 0, deaths: 0, painted: 0, dmgDone: 0, streak: 0, streakT: 0,
           cmd: { mx: 0, mz: 0 }, animT: Math.random() * 10,
         };
@@ -249,7 +305,12 @@ export class Match {
 
   // ------------------------------------------------------------------ helpers used by heroes.js
   after(delay, fn) { this.timers.push({ t: delay, fn }); }
-  dmgOf(h, base) { return h.kind === 'hero' ? base * (1 + LEVEL_BONUS * (h.level - 1)) : base; }
+  dmgOf(h, base) { return h.kind === 'hero' ? base * (1 + LEVEL_BONUS * (h.level - 1)) * h.mod.dmg : base; }
+  maxHpOf(h) { return Math.round(h.def.hp * (1 + LEVEL_BONUS * (h.level - 1)) * h.mod.hp); }
+  addUlt(h, v) { h.ult = Math.min(1, h.ult + v * h.mod.ult * (1 + 0.2 * this.wellsOwned(h.team))); }
+  // crowd control goes through these two so "unstoppable" heroes can ignore it
+  slow(u, time, factor) { if (u.kind !== 'hero' || u.def.passive.unstoppable) return; u.slowT = Math.max(u.slowT, time); u.slowF = factor; }
+  knock(u, kx, kz) { if (u.kind !== 'hero' || u.def.passive.unstoppable) return; u.kx += kx; u.kz += kz; }
   canDamage(s) { return s.kind !== 'core' || !this.towers[s.team].alive; }
   near(x, z, r = 20) { return Math.hypot(x - this.cam.x, z - this.cam.z) < r; }
 
@@ -260,19 +321,17 @@ export class Match {
   }
 
   paintBy(owner, x, z, r, team) {
-    const gained = this.paint.paint(x, z, r, team);
-    if (gained && owner && owner.kind === 'hero') {
-      owner.painted += gained;
-      owner.ult = Math.min(1, owner.ult + gained * 0.0011);
-    }
+    const hero = owner && owner.kind === 'hero';
+    const gained = this.paint.paint(x, z, hero ? r * owner.mod.paint : r, team);
+    if (gained && hero) { owner.painted += gained; this.addUlt(owner, gained * 0.0011); }
     return gained;
   }
 
   shoot(h, o) {
-    if (!h.alive) return;
-    const side = o.side || 0;
-    let px = h.x + o.dx * 0.7 + o.dz * side, pz = h.z + o.dz * 0.7 - o.dx * side;
-    if (pointInBox(px, pz, 0.1)) { px = h.x; pz = h.z; }
+    if (!h.alive && !o.from) return;
+    const side = o.side || 0, ox = o.from ? o.from.x : h.x, oz = o.from ? o.from.z : h.z;
+    let px = ox + o.dx * 0.7 + o.dz * side, pz = oz + o.dz * 0.7 - o.dx * side;
+    if (pointInBox(px, pz, 0.1)) { px = ox; pz = oz; }
     const mesh = new THREE.Mesh(this.projGeo, this.projMat[h.team]);
     const s = o.size || 1;
     mesh.scale.set(s, s, s * 1.6);
@@ -280,10 +339,11 @@ export class Match {
     mesh.position.set(px, 1, pz);
     mesh.add(this.halo(h.team, 2.1));
     this.scene.add(mesh);
-    if (h.kind === 'hero') this.fx.flash(px, 1.1, pz, TEAM_COLORS[h.team], 1.2);
+    if (h.kind === 'hero' && !o.from) this.fx.flash(px, 1.1, pz, TEAM_COLORS[h.team], 1.2);
     this.projectiles.push({
       owner: h, team: h.team, x: px, z: pz, dx: o.dx, dz: o.dz, speed: o.speed, range: o.range, dist: 0,
       dmg: this.dmgOf(h, o.dmg), dmgMinion: o.dmgMinion, hitR: o.hitR || 0.3, paintR: o.paintR, trailR: o.trailR || 0, trail: 0.3,
+      slow: o.slow || null, ramp: o.ramp || 0, healAllies: o.healAllies || 0, healed: o.healAllies ? new Set([h]) : null,
       pierce: !!o.pierce, knock: o.knock || 0, hit: o.hitSet || (o.pierce ? new Set() : null), homing: o.homing || null, mesh,
     });
   }
@@ -302,6 +362,52 @@ export class Match {
 
   startSpin(h, dur) { h.spin = { t: dur, acc: 0, ang: Math.random() * 6 }; }
 
+  // Tailwind: the caster and allies around them move and reload faster for a while.
+  haste(h, radius, time) {
+    for (const a of this.heroes) if (a.team === h.team && a.alive && dist(a, h) < radius) { a.hasteT = time; this.fx.ring(a.x, a.z, 1.8, 0xffffff, 0.4); }
+    this.fx.ring(h.x, h.z, radius, 0xcdbcff, 0.5);
+  }
+
+  // Deployable turret. It lives in the blob list, so towers and blobs treat it like a blob.
+  addTurret(h, x, z, o) {
+    x = Math.max(-HALF_W + 1, Math.min(HALF_W - 1, x)); z = Math.max(-HALF_H + 1, Math.min(HALF_H - 1, z));
+    if (pointInBox(x, z, 0.7)) { x = h.x; z = h.z; }
+    if (h.turret && h.turret.alive) h.turret.alive = false;
+    const model = buildTurret(h.team);
+    const hp = Math.round(o.hp * (1 + LEVEL_BONUS * (h.level - 1)));
+    const tu = { kind: 'minion', pet: true, owner: h, team: h.team, x, z, radius: 0.6, hp, maxHp: hp, alive: true, life: o.dur, fireT: 0.4, o, model, flash: 0, target: null };
+    tu.bar = makeBar(1.1, TEAM_COLORS[h.team], 0.12);
+    model.root.add(tu.bar.g);
+    tu.bar.g.position.y = 1.9;
+    model.root.position.set(x, 0, z);
+    this.scene.add(model.root);
+    this.minions.push(tu);
+    h.turret = tu;
+    this.paintBy(h, x, z, 1.6, h.team);
+    this.fx.ring(x, z, 1.8, TEAM_COLORS[h.team], 0.4);
+  }
+
+  updateTurret(tu, dt) {
+    tu.life -= dt;
+    if (tu.life <= 0) { tu.alive = false; this.fx.splash(tu.x, 0.6, tu.z, TEAM_COLORS[tu.team], 10, 5); return; }
+    let best = null, bd = tu.o.range;
+    for (const u of this.targets[1 - tu.team]) {
+      if (u.kind !== 'hero' && u.kind !== 'minion' && !this.canDamage(u)) continue;
+      const d = dist(tu, u) - u.radius;
+      if (d < bd && clearLine(tu.x, tu.z, u.x, u.z)) { bd = d; best = u; }
+    }
+    tu.fireT -= dt;
+    if (best) {
+      const dx = best.x - tu.x, dz = best.z - tu.z, d = Math.hypot(dx, dz) || 1;
+      tu.model.head.rotation.y = Math.atan2(dx, dz);
+      if (tu.fireT <= 0) {
+        tu.fireT = tu.o.rate;
+        this.shoot(tu.owner, { from: tu, dx: dx / d, dz: dz / d, speed: 20, range: tu.o.range + 1, dmg: tu.o.dmg, paintR: 0.95, trailR: 0.55, size: 0.8 });
+      }
+    } else tu.model.head.rotation.y += dt * 1.5;
+    tu.bar.set(tu.hp / tu.maxHp);
+  }
+
   // Sustained stream of shots inside a cone (the hero keeps facing that way and is tougher meanwhile).
   spray(h, dx, dz, dur, spread, o) { h.spray = { t: dur, acc: 0, base: Math.atan2(dx, dz), spread, o }; h.aimHold = dur; }
 
@@ -312,8 +418,8 @@ export class Match {
       if (d > radius + u.radius) continue;
       this.damage(u, this.dmgOf(h, dmg), h);
       if (u.kind === 'hero' && u.alive) {
-        if (o.knock) { const k = o.knock / (d || 1); u.kx += (u.x - x) * k; u.kz += (u.z - z) * k; }
-        if (o.slow) { u.slowT = o.slow; u.slowF = 0.6; }
+        if (o.knock) { const k = o.knock / (d || 1); this.knock(u, (u.x - x) * k, (u.z - z) * k); }
+        if (o.slow) this.slow(u, o.slow, o.slowF || 0.6);
       }
     }
     this.paintBy(h, x, z, o.paintR || radius, team);
@@ -385,7 +491,7 @@ export class Match {
 
   useAbility(h, aim) {
     if (!h.alive || h.cd > 0 || h.dash) return false;
-    h.cd = h.def.ability.cd;
+    h.cd = h.cdMax = h.def.ability.cd * h.mod.cdr;
     if (h.def.ability.aim !== 'self') { h.dir = Math.atan2(aim.dx, aim.dz); h.aimHold = 0.4; }
     h.kick = 1;
     h.def.ability.use(this, h, aim);
@@ -448,6 +554,7 @@ export class Match {
       if (p) { const dx = p.x - h.x, dz = p.z - h.z, d = Math.hypot(dx, dz) || 1; mouseAim = { dx: dx / d, dz: dz / d, dist: d }; }
     }
     for (const a of actions) {
+      if (a.type === 'talent') { if (h.offer && a.i < h.offer.options.length) this.pickTalent(h, a.i); continue; }
       const range = this.rangeOf(h, a.type);
       let aim;
       if (a.aimed) aim = { dx: a.dx, dz: a.dz, dist: a.mag * range };
@@ -508,6 +615,13 @@ export class Match {
     if (u.kind === 'hero') {
       if (u.shield > 0) return 0;
       if (u.spin || u.spray) amount *= 0.6;
+      const pv = u.def.passive;
+      if (pv.thickSkin && u.hp < u.maxHp * 0.5) amount *= pv.thickSkin;
+      if (u.barrier > 0) {
+        const soaked = Math.min(u.barrier, amount);
+        u.barrier -= soaked; amount -= soaked; u.sinceHit = 0;
+        if (amount < 1) { u.model.flash.value = 0.5; return 0; }
+      }
     } else if (u.kind !== 'minion') {
       if (!this.canDamage(u)) {
         if (owner && owner.isPlayer && this.annT <= 0) { this.floatText(u, t('immune'), 'info'); this.annT = 0.6; }
@@ -523,19 +637,55 @@ export class Match {
     if (u.model && u.model.flash) u.model.flash.value = 1;
     if (owner) {
       owner.dmgDone += amount;
-      owner.ult = Math.min(1, owner.ult + amount / owner.def.ultCharge);
+      this.addUlt(owner, amount / owner.def.ultCharge);
+      if (owner.mod.vamp && owner.alive && (u.kind === 'hero' || u.kind === 'minion')) this.heal(owner, amount * owner.mod.vamp, true);
       if (owner.isPlayer) { this.floatText(u, amount, u.kind === 'hero' ? 'dmg' : 'dmg small'); audio.hit(0.7); }
     }
     if (u.isPlayer) { this.floatText(u, `-${amount}`, 'hurt'); this.fx.addShake(0.12); }
     if (u.hp <= 0) this.kill(u, owner, src);
+    else if (u.kind === 'hero' && u.hp < u.maxHp * 0.3) this.guardian(u);
     return amount;
   }
 
-  heal(u, amount) {
+  heal(u, amount, quiet) {
     if (!u.alive || u.hp >= u.maxHp) return;
     amount = Math.round(Math.min(amount, u.maxHp - u.hp));
     u.hp += amount;
-    if (u.isPlayer && amount > 20) this.floatText(u, `+${amount}`, 'heal');
+    if (u.isPlayer && !quiet && amount > 20) this.floatText(u, `+${amount}`, 'heal');
+  }
+
+  // Nimbi's passive: an ally about to go down nearby gets a short shield.
+  guardian(u) {
+    for (const n of this.heroes) {
+      const g = n.def.passive.guardian;
+      if (!g || n.team !== u.team || !n.alive || n.guardCd > 0 || dist(n, u) > g.r) continue;
+      n.guardCd = g.cd;
+      u.shield = g.t;
+      this.fx.ring(u.x, u.z, 2.2, 0xcdbcff, 0.5);
+      if (u.isPlayer || n.isPlayer) this.floatText(u, t('shielded'), 'info');
+      return;
+    }
+  }
+
+  // Level 3/5/7: choose one of three talents. Bots choose at random; the player gets cards.
+  offerTalent(h) {
+    if (h.offer) this.pickTalent(h, 0);
+    const options = shuffle(TALENTS.filter((x) => !h.talents.includes(x.id))).slice(0, 3);
+    h.offer = { options, t: 12 };
+    if (h.isPlayer && !this.autoplay) this.hud.talents(options, (i) => this.pickTalent(h, i));
+    else this.pickTalent(h, (Math.random() * options.length) | 0);
+  }
+
+  pickTalent(h, i) {
+    if (!h.offer) return;
+    const tl = h.offer.options[i];
+    h.offer = null;
+    tl.apply(h);
+    h.talents.push(tl.id);
+    const old = h.maxHp;
+    h.maxHp = this.maxHpOf(h);
+    if (h.alive) h.hp += h.maxHp - old;
+    if (h.isPlayer) { this.hud.talents(null); if (h.alive) this.floatText(h, tr(tl.name), 'lvl'); audio.levelUp(); }
   }
 
   addXp(h, n) {
@@ -545,11 +695,12 @@ export class Match {
       h.xp -= xpNeed(h.level);
       h.level++;
       const old = h.maxHp;
-      h.maxHp = Math.round(h.def.hp * (1 + LEVEL_BONUS * (h.level - 1)));
+      h.maxHp = this.maxHpOf(h);
       if (h.alive) h.hp = Math.min(h.maxHp, h.hp + (h.maxHp - old) + h.maxHp * 0.15);
       h.label.draw(h.name, h.level, TEAM_CSS[h.team]);
       if (h.alive) { this.fx.ring(h.x, h.z, 2.2, 0xffe36b, 0.5); this.fx.splash(h.x, 1.5, h.z, 0xffe36b, 10, 5); }
       if (h.isPlayer) { this.floatText(h, t('levelUp'), 'lvl'); audio.levelUp(); }
+      if (TALENT_LEVELS.includes(h.level)) this.offerTalent(h);
     }
   }
 
@@ -561,7 +712,8 @@ export class Match {
     if (u.kind === 'hero') {
       u.deaths++;
       u.respawn = 4 + u.level * 0.5;
-      u.dash = null; u.spin = null; u.spray = null; u.kx = u.kz = 0;
+      u.dash = null; u.spin = null; u.spray = null; u.kx = u.kz = 0; u.barrier = 0; u.hasteT = 0;
+      for (const h of this.heroes) if (h.team === enemy && h.alive && h.def.passive.resetOnKill && (h === killer || dist(h, u) < 10)) h.cd = 0;
       u.model.root.visible = false; u.ui.visible = false; u.ring.visible = false; u.bubble.visible = false;
       this.kills[enemy]++;
       this.paintBy(killer, u.x, u.z, 2.9, enemy);
@@ -638,9 +790,10 @@ export class Match {
     const own = this.paint.ownerAt(h.x, h.z);
     const onOwn = own === h.team, onEnemy = own === 1 - h.team;
     h.cd = Math.max(0, h.cd - dt);
-    h.fireLock -= dt; h.aimHold -= dt; h.shield -= dt; h.sinceHit += dt; h.streakT -= dt;
+    h.fireLock -= dt; h.aimHold -= dt; h.shield -= dt; h.sinceHit += dt; h.streakT -= dt; h.hasteT -= dt; h.guardCd -= dt;
+    const pv = h.def.passive, haste = h.hasteT > 0;
     if (h.ammo < h.def.ammo) {
-      h.reload += (dt * (onOwn ? 1.5 : 1)) / h.def.reload;
+      h.reload += (dt * (onOwn ? 1.5 : 1) * h.mod.reload * (haste ? 1.4 : 1)) / h.def.reload;
       if (h.reload >= 1) { h.ammo++; h.reload = 0; }
     }
     // healing: fast at base, slow on own paint when out of combat; enemy paint stings
@@ -648,10 +801,17 @@ export class Match {
     if (Math.hypot(h.x - base.x, h.z - base.z) < 5) this.heal(h, h.maxHp * 0.3 * dt);
     else if (onOwn && h.sinceHit > 3) h.hp = Math.min(h.maxHp, h.hp + h.maxHp * 0.045 * dt);
     if (onEnemy && h.shield <= 0) h.hp = Math.max(1, h.hp - 40 * dt);
+    // passives that tick
+    if (pv.barrier) { const max = pv.barrier * (1 + LEVEL_BONUS * (h.level - 1)); if (h.sinceHit > 4) h.barrier = Math.min(max, h.barrier + max * dt); }
+    if (pv.aura && (h.auraT -= dt) <= 0) {
+      h.auraT = 0.5;
+      for (const a of this.heroes) if (a.team === h.team && a.alive && dist(a, h) < pv.aura.r) this.heal(a, pv.aura.heal * 0.5 * (1 + LEVEL_BONUS * (h.level - 1)), true);
+    }
+    if (h.offer && (h.offer.t -= dt) <= 0) this.pickTalent(h, 0);
 
     // movement
     const px = h.x, pz = h.z;
-    let speed = h.def.speed * (onOwn ? 1.18 : onEnemy ? 0.76 : 1);
+    let speed = h.def.speed * h.mod.speed * (onOwn ? (pv.ownSpeed || 1.18) : onEnemy && !pv.unstoppable ? 0.76 : 1) * (haste ? 1.3 : 1);
     if (h.slowT > 0) { h.slowT -= dt; speed *= h.slowF; }
     if (h.dash) {
       const d = h.dash;
@@ -666,6 +826,7 @@ export class Match {
       }
       if (d.t <= 0) {
         h.dash = null;
+        if (pv.afterDash) h.hasteT = pv.afterDash;
         if (d.o.end) this.burst(h, h.x, h.z, d.o.end.radius, d.o.end.dmg, d.o.end);
         else this.paintBy(h, h.x, h.z, d.o.paintR + 0.4, h.team);
       }
@@ -676,7 +837,7 @@ export class Match {
     }
     const decay = Math.exp(-6 * dt);
     h.kx *= decay; h.kz *= decay;
-    resolveCollisions(h, this.structures);
+    resolveCollisions(h, this.colliders, !!(h.dash && h.dash.o.fly));
     h.vx = (h.x - px) / dt; h.vz = (h.z - pz) / dt;
     const moved = Math.hypot(h.x - px, h.z - pz);
     const cmdLen = Math.hypot(h.cmd.mx, h.cmd.mz);
@@ -714,13 +875,14 @@ export class Match {
     h.kick = Math.max(0, h.kick - dt * 5);
     h.animT += dt * (onOwn ? 1.15 : 1);
     animateHero(m, h.animT, dt, { moving: h.moving, kick: Math.min(1, h.kick), dir: h.dir, vx: h.cmd.mx, spin: !!h.spin, clear: this.clearBehind(h), cheer: this.state === 'ended' && this.result && this.result.winner === h.team });
-    m.root.position.set(h.x, h.dash ? 0.25 : 0, h.z);
+    m.root.position.set(h.x, h.dash ? (h.dash.o.fly ? 1.7 : 0.25) : 0, h.z);
+    if (haste && Math.random() < dt * 14) this.fx.splash(h.x, 0.3, h.z, 0xffffff, 1, 2);
     h.ring.position.set(h.x, 0.06, h.z);
     h.ui.position.set(h.x, m.topY + 0.6, h.z + m.topZ);
     h.bar.set(h.hp / h.maxHp);
     if (h.ammoBar) h.ammoBar.set((h.ammo + (h.ammo < h.def.ammo ? h.reload : 0)) / h.def.ammo);
-    h.bubble.visible = h.shield > 0;
-    if (h.bubble.visible) h.bubble.position.set(h.x, 1.1, h.z);
+    h.bubble.visible = h.shield > 0 || h.barrier > 1;
+    if (h.bubble.visible) { h.bubble.position.set(h.x, 1.3, h.z); h.bubble.material.uniforms.uOpacity.value = h.shield > 0 ? 0.65 : 0.3; }
   }
 
   // Free space right behind (north of) a hero: figures lean back, so they straighten up next to walls.
@@ -738,10 +900,11 @@ export class Match {
     this.wave++;
     for (let team = 0; team < 2; team++) {
       const sign = team === 0 ? 1 : -1;
-      for (let i = 0; i < 3; i++) {
+      const count = 3 + this.wellsOwned(team);
+      for (let i = 0; i < count; i++) {
         const model = buildMinion(team);
         const hp = 620 + this.wave * 70;
-        const mn = { kind: 'minion', team, x: CORE_POS[team].x + sign * 3.2, z: (i - 1) * 1.3, radius: 0.45, hp, maxHp: hp, alive: true, atkT: Math.random(), think: Math.random() * 0.3, target: null, walk: 0, t: Math.random() * 6, model, flash: 0 };
+        const mn = { kind: 'minion', team, x: CORE_POS[team].x + sign * 3.2, z: (i - (count - 1) / 2) * 1.3, radius: 0.45, hp, maxHp: hp, alive: true, atkT: Math.random(), think: Math.random() * 0.3, target: null, walk: 0, t: Math.random() * 6, model, flash: 0 };
         mn.bar = makeBar(0.9, TEAM_COLORS[team], 0.11);
         model.root.add(mn.bar.g);
         mn.bar.g.position.y = 1.25;
@@ -753,6 +916,7 @@ export class Match {
   }
 
   updateMinion(mn, dt) {
+    if (mn.pet) { this.updateTurret(mn, dt); return; }
     mn.think -= dt;
     if (mn.think <= 0) {
       mn.think = 0.3;
@@ -778,7 +942,7 @@ export class Match {
       }
     } else {
       const goal = tg || this.cores[1 - mn.team];
-      const s = steer(mn, goal.x, goal.z, this.structures, goal);
+      const s = steer(mn, goal.x, goal.z, this.colliders, goal);
       mn.x += s.x * speed * dt; mn.z += s.z * speed * dt;
       mn.model.root.rotation.y = Math.atan2(s.x, s.z);
       moving = true;
@@ -789,7 +953,7 @@ export class Match {
       const dx = mn.x - o.x, dz = mn.z - o.z, d2 = dx * dx + dz * dz;
       if (d2 < 0.81 && d2 > 1e-6) { const d = Math.sqrt(d2), push = (0.9 - d) * 0.5; mn.x += (dx / d) * push; mn.z += (dz / d) * push; }
     }
-    resolveCollisions(mn, this.structures);
+    resolveCollisions(mn, this.colliders);
     mn.walk += Math.hypot(mn.x - px, mn.z - pz);
     if (mn.walk > 0.7) { mn.walk = 0; this.paint.paint(mn.x, mn.z, 0.6, mn.team); }
     mn.t += dt;
@@ -805,7 +969,7 @@ export class Match {
     if (!s.alive) return;
     if (recalc) s.enemyShare = this.paint.share(s.x, s.z, SHIELD_R, 1 - s.team);
     const open = this.canDamage(s);
-    s.bubble.material.uniforms.uOpacity.value = open ? 0.06 + 0.4 * (1 - s.enemyShare) : 0.7;
+    s.bubble.material.uniforms.uOpacity.value = open ? 0.05 + 0.3 * (1 - s.enemyShare) : 0.42;
     s.bubble.rotation.y += dt * 0.4;
     s.bar.set(s.hp / s.maxHp);
     s.flash = Math.max(0, s.flash - dt);
@@ -860,14 +1024,25 @@ export class Match {
       p.x += p.dx * step; p.z += p.dz * step;
       p.dist += step; p.trail += step;
       if (p.trailR && p.trail >= 0.8) { p.trail = 0; this.paintBy(p.owner, p.x, p.z, p.trailR, p.team); }
+      if (p.healAllies) {
+        for (const f of this.heroes) {
+          if (f.team !== p.team || !f.alive || p.healed.has(f) || Math.hypot(f.x - p.x, f.z - p.z) > p.hitR + f.radius) continue;
+          p.healed.add(f);
+          this.heal(f, this.dmgOf(p.owner, p.healAllies));
+          this.fx.ring(f.x, f.z, 1.6, 0x9dffc0, 0.35);
+        }
+      }
       if (Math.abs(p.x) > HALF_W || Math.abs(p.z) > HALF_H || (!p.homing && pointInBox(p.x, p.z, 0.05))) dead = true;
       else {
         for (const u of this.targets[1 - p.team]) {
           if (p.hit && p.hit.has(u)) continue;
           const dx = u.x - p.x, dz = u.z - p.z, rr = p.hitR + u.radius;
           if (dx * dx + dz * dz > rr * rr) continue;
-          this.damage(u, p.dmg, p.owner);
-          if (p.knock && u.kind === 'hero' && u.alive) { u.kx += p.dx * p.knock; u.kz += p.dz * p.knock; }
+          this.damage(u, p.ramp ? p.dmg * (p.ramp + (1 - p.ramp) * Math.min(1, p.dist / (p.range * 0.85))) : p.dmg, p.owner);
+          if (u.kind === 'hero' && u.alive) {
+            if (p.knock) this.knock(u, p.dx * p.knock, p.dz * p.knock);
+            if (p.slow) this.slow(u, p.slow.t, p.slow.f);
+          }
           if (p.pierce) p.hit.add(u); else { dead = true; break; }
         }
       }
@@ -894,6 +1069,7 @@ export class Match {
       l.marker.material.opacity = 0.5 + 0.4 * Math.sin(this.time * 24);
       if (k >= 1) {
         this.burst(l.owner, l.tx, l.tz, l.o.radius, l.o.dmg, l.o);
+        if (l.o.onLand) l.o.onLand(l.tx, l.tz);
         this.scene.remove(l.mesh, l.marker);
         l.marker.material.dispose();
         this.lobs.splice(i, 1);
@@ -922,7 +1098,7 @@ export class Match {
           for (const u of this.targets[1 - z.team]) {
             if (Math.hypot(u.x - z.x, u.z - z.z) > z.r + u.radius) continue;
             this.damage(u, this.dmgOf(z.owner, z.dmg), z.owner);
-            if (z.slow && u.kind === 'hero') { u.slowT = 0.7; u.slowF = z.slow; }
+            if (z.slow) this.slow(u, 0.7, z.slow);
           }
         }
       }
@@ -1031,6 +1207,7 @@ export class Match {
     const recalc = this.shareT <= 0;
     if (recalc) this.shareT = 0.4;
     for (const s of this.structures) this.updateStructure(s, dt, recalc);
+    this.updateWells(dt, recalc);
     this.updateProjectiles(dt);
     this.updateZones(dt);
 
@@ -1071,9 +1248,9 @@ export class Match {
       this.hud.setTop(this.paint.coverage(0), this.paint.coverage(1), this.left, this.kills, {
         t0: this.towers[0].hp / this.towers[0].maxHp, c0: this.cores[0].hp / this.cores[0].maxHp,
         t1: this.towers[1].hp / this.towers[1].maxHp, c1: this.cores[1].hp / this.cores[1].maxHp,
-      });
+      }, this.wells.map((w) => w.owner));
       this.hud.setLevel(p.level, p.level >= MAX_LEVEL ? 1 : p.xp / xpNeed(p.level));
-      this.hud.minimap(this.paint.canvas, [...this.structures, ...this.minions, ...this.heroes], p);
+      this.hud.minimap(this.paint.canvas, [...this.structures, ...this.minions, ...this.heroes], p, this.wells);
     }
   }
 

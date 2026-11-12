@@ -1,5 +1,5 @@
 import { TEAM_CSS, MAP_W, MAP_H, HALF_W, HALF_H } from './config.js';
-import { t } from './i18n.js';
+import { t, tr } from './i18n.js';
 
 const ICONS = {
   fire: '<svg viewBox="0 0 24 24"><path d="M12 2c3.5 4.6 6 7.6 6 11a6 6 0 1 1-12 0c0-3.4 2.5-6.400 6-11z" fill="currentColor"/></svg>',
@@ -17,7 +17,7 @@ export class Hud {
       <div class="top">
         <div class="score s0"><b class="k0">0</b></div>
         <div class="mid">
-          <div class="timer">3:00</div>
+          <div class="timer-row"><i class="wp wp0"></i><div class="timer">3:00</div><i class="wp wp1"></i></div>
           <div class="paintbar"><div class="pb pb0"></div><div class="pb pb1"></div><span class="pct pct0">0%</span><span class="pct pct1">0%</span></div>
           <div class="structs">
             <div class="st st0"><i class="ic tower"></i><div class="sb"><div class="sf t0"></div></div><i class="ic core"></i><div class="sb"><div class="sf c0"></div></div></div>
@@ -31,6 +31,7 @@ export class Hud {
       <div class="feed"></div>
       <div class="announce"></div>
       <div class="respawn"></div>
+      <div class="talents"></div>
       <div class="tips"></div>
       <div class="floaters"></div>
       <div class="hint">${t('controls')}</div>`;
@@ -44,6 +45,8 @@ export class Hud {
     this.feedEl = q('.feed');
     this.annEl = q('.announce');
     this.respawnEl = q('.respawn');
+    this.talentEl = q('.talents');
+    this.wp = [q('.wp0'), q('.wp1')];
     this.tipsEl = q('.tips');
     this.floaters = q('.floaters');
     this.lv = q('.lv'); this.xpf = q('.xpf');
@@ -56,7 +59,8 @@ export class Hud {
     else setTimeout(() => q('.hint')?.classList.add('fade'), 9000);
   }
 
-  setTop(cov0, cov1, left, kills, structs) {
+  setTop(cov0, cov1, left, kills, structs, wells) {
+    if (wells) wells.forEach((o, i) => { this.wp[i].className = `wp wp${i} ${o < 0 ? '' : 'o' + o}`; });
     const m = Math.floor(left / 60), s = Math.floor(left % 60);
     this.timer.textContent = `${m}:${s < 10 ? '0' : ''}${s}`;
     this.timer.classList.toggle('hot', left <= 30);
@@ -79,7 +83,7 @@ export class Hud {
     b.fire.el.style.setProperty('--p', ammo / h.def.ammo);
     b.fire.el.classList.toggle('empty', h.ammo < 1);
     b.fire.el.querySelector('.act-label').textContent = '●'.repeat(h.ammo) + '○'.repeat(h.def.ammo - h.ammo);
-    const cd = h.cd / h.def.ability.cd;
+    const cd = h.cd / (h.cdMax || h.def.ability.cd);
     b.ability.el.style.setProperty('--p', 1 - cd);
     b.ability.el.classList.toggle('empty', h.cd > 0);
     b.ability.el.querySelector('.act-label').textContent = h.cd > 0 ? Math.ceil(h.cd) : '';
@@ -116,6 +120,27 @@ export class Hud {
     this.tipsEl.classList.toggle('show', lines.length > 0);
   }
 
+  // Talent choice: three cards; `onPick(i)` is called with the chosen index. Pass null to hide.
+  talents(options, onPick) {
+    this.talentEl.innerHTML = '';
+    this.talentEl.classList.toggle('show', !!options);
+    if (!options) return;
+    const head = document.createElement('div');
+    head.className = 'tl-head';
+    head.textContent = t('talentPick');
+    this.talentEl.appendChild(head);
+    const row = document.createElement('div');
+    row.className = 'tl-row';
+    options.forEach((o, i) => {
+      const b = document.createElement('button');
+      b.className = 'tl-card';
+      b.innerHTML = `<i>${i + 1}</i><b>${tr(o.name)}</b><span>${tr(o.text)}</span>`;
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); onPick(i); });
+      row.appendChild(b);
+    });
+    this.talentEl.appendChild(row);
+  }
+
   respawn(sec) {
     this.respawnEl.textContent = sec > 0 ? `${t('respawn')} ${Math.ceil(sec)}` : '';
     this.respawnEl.classList.toggle('show', sec > 0);
@@ -133,10 +158,15 @@ export class Hud {
     setTimeout(() => { d.remove(); this.floatCount--; }, 800);
   }
 
-  minimap(paintCanvas, units, player) {
+  minimap(paintCanvas, units, player, wells = []) {
     const c = this.mctx, W = this.mini.width, H = this.mini.height;
     c.drawImage(paintCanvas, 0, 0, W, H);
     const sx = W / MAP_W, sz = H / MAP_H;
+    for (const w of wells) {
+      c.strokeStyle = w.owner < 0 ? '#ffffff' : TEAM_CSS[w.owner];
+      c.lineWidth = 2.5;
+      c.beginPath(); c.arc((w.x + HALF_W) * sx, (w.z + HALF_H) * sz, w.r * sx, 0, Math.PI * 2); c.stroke();
+    }
     for (const u of units) {
       if (!u.alive) continue;
       const x = (u.x + HALF_W) * sx, y = (u.z + HALF_H) * sz;

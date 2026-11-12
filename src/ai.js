@@ -36,6 +36,7 @@ function decide(m, h) {
   const objD = dist(h, obj);
   a.target = null;
   a.strafeAmt = 0;
+  a.atWell = false;
   a.goalX = h.x; a.goalZ = h.z;
 
   if (a.mode === 'retreat') {
@@ -62,6 +63,16 @@ function decide(m, h) {
     a.target = blob;
     a.strafeAmt = 0.35;
     if (blobD < 2.6) { a.goalX = h.x + (h.x - blob.x); a.goalZ = h.z + (h.z - blob.z); }
+    return;
+  }
+
+  // side lanes: take the paint well first, and take it back when it is lost
+  const well = Math.abs(a.laneZ) > 5 ? m.wells[a.laneZ < 0 ? 0 : 1] : null;
+  if (well && well.owner !== h.team && Math.abs(h.x - well.x) < 17) {
+    a.atWell = true;
+    const ang = (a.wellJ ?? (a.wellJ = Math.random() * 6.28)) + m.time * 0.9;
+    a.goalX = well.x + Math.cos(ang) * 2.6;
+    a.goalZ = well.z + Math.sin(ang) * 2.6;
     return;
   }
 
@@ -92,7 +103,7 @@ export function updateAI(m, h, dt) {
   let mx = 0, mz = 0;
   const dg = Math.hypot(a.goalX - h.x, a.goalZ - h.z);
   if (dg > 0.5) {
-    const s = steer(h, a.goalX, a.goalZ, m.structures, isStruct ? tv : null);
+    const s = steer(h, a.goalX, a.goalZ, m.colliders, isStruct ? tv : null);
     mx = s.x; mz = s.z;
   }
   if (tv && a.strafeAmt) {
@@ -112,16 +123,17 @@ export function updateAI(m, h, dt) {
     }
   }
   // escape dash when running home
+  if (a.mode === 'retreat' && ab.ai.type === 'buff' && h.cd <= 0 && dg > 6) m.useAbility(h, { dx: 0, dz: 1, dist: 0 });
   if (a.mode === 'retreat' && ab.ai.type === 'dash' && h.cd <= 0 && dg > 6) {
     m.useAbility(h, { dx: mx || 0, dz: mz || 1, dist: ab.range });
   }
 
   if (!tv) {
     // nothing to shoot: spend spare ammo on painting the way forward
-    if (a.paintT <= 0 && h.ammo >= def.ammo && a.mode !== 'retreat') {
-      a.paintT = 0.5 + Math.random() * 0.8;
+    if (a.paintT <= 0 && h.ammo >= (a.atWell ? 1 : def.ammo) && a.mode !== 'retreat') {
+      a.paintT = a.atWell ? 0.25 + Math.random() * 0.3 : 0.5 + Math.random() * 0.8;
       const base = ml > 0.1 ? Math.atan2(mx, mz) : (h.team === 0 ? Math.PI / 2 : -Math.PI / 2);
-      const ang = base + (Math.random() - 0.5) * 1.3;
+      const ang = a.atWell ? Math.random() * 6.28 : base + (Math.random() - 0.5) * 1.3;
       m.fire(h, { dx: Math.sin(ang), dz: Math.cos(ang), dist: def.range });
     }
     return;
@@ -148,6 +160,8 @@ export function updateAI(m, h, dt) {
     else if (t === 'near' && reach < ab.ai.range) m.useAbility(h, aim);
     else if (t === 'skillshot' && d < ab.ai.range && los) m.useAbility(h, aim);
     else if (t === 'area' && d < ab.ai.range + 1.5) m.useAbility(h, { ...aim, dist: Math.min(aim.dist, ab.range) });
+    else if (t === 'summon' && d < ab.ai.range) m.useAbility(h, { ...aim, dist: 2.5 });
+    else if (t === 'buff' && d < ab.ai.range) m.useAbility(h, aim);
   }
   if (a.fireT <= 0 && h.ammo >= 1 && reach < def.range && los) {
     if (m.fire(h, aim)) a.fireT = 0.28 + Math.random() * 0.4;

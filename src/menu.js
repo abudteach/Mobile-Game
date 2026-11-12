@@ -63,7 +63,7 @@ export class MenuScene {
   render(gfx) { gfx.render(this.scene, this.camera); }
 }
 
-const SKILL_ICON = { attack: '●', ability: '⚡', ult: '★' };
+const SKILL_ICON = { passive: '◆', attack: '●', ability: '⚡', ult: '★' };
 
 // DOM for the hero select screen.
 export class MenuUI {
@@ -112,7 +112,7 @@ export class MenuUI {
       <div class="hname">${h.name}</div>
       <div class="htag">${tr(h.tagline)}</div>
       <div class="stats">${stat('atk', t('statAtk'))}${stat('def', t('statDef'))}${stat('spd', t('statSpd'))}${stat('paint', t('statPaint'))}</div>
-      <div class="skills">${skill('attack')}${skill('ability')}${skill('ult')}</div>`;
+      <div class="skills">${skill('passive')}${skill('attack')}${skill('ability')}${skill('ult')}</div>`;
   }
 
   dispose() { this.el.remove(); }

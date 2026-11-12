@@ -438,9 +438,9 @@ const BOXES = OBSTACLES.map((o) => ({ x0: o.x - o.w / 2, x1: o.x + o.w / 2, z0: 
 export { BOXES };
 
 // Push a circle out of walls, cover blocks and (optionally) round structures.
-export function resolveCollisions(u, structures) {
+export function resolveCollisions(u, structures, skipBoxes) {
   const r = u.radius;
-  for (const b of BOXES) {
+  for (const b of skipBoxes ? [] : BOXES) {
     const nx = Math.max(b.x0, Math.min(u.x, b.x1));
     const nz = Math.max(b.z0, Math.min(u.z, b.z1));
     let dx = u.x - nx, dz = u.z - nz;
