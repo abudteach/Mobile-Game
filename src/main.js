@@ -5,6 +5,7 @@ import './style.css';
 import { Match } from './game.js';
 import { MenuScene, MenuUI, ResultUI, makeThumbs, addTrophies } from './menu.js';
 import { audio } from './audio.js';
+import { Gfx } from './gfx.js';
 import { view, updateView } from './view.js';
 
 const params = new URLSearchParams(location.search);
@@ -16,10 +17,11 @@ class App {
     this.hudRoot = document.getElementById('ui');
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.thumbs = makeThumbs(this.renderer);
-    this.renderer.setClearColor(0x000000, 0);
+    this.renderer.setClearColor(0x0d0a24, 1);
+    this.gfx = new Gfx(this.renderer);
     this.match = null;
     this.menuScene = new MenuScene();
     this.menuUI = null;
@@ -42,8 +44,7 @@ class App {
 
   resize() {
     updateView();
-    this.renderer.setPixelRatio(this.quality.ratio);
-    this.renderer.setSize(view.w, view.h, false);
+    this.gfx.setSize(view.w, view.h, this.quality.ratio);
     this.menuScene?.resize();
     this.match?.resize();
   }
@@ -94,7 +95,9 @@ class App {
     q.slow = dt > 1 / 38 ? q.slow + 1 : Math.max(0, q.slow - 2);
     if (q.slow < 90) return;
     q.slow = 0;
-    if (q.ratio > 1) { q.ratio = Math.max(1, q.ratio - 0.5); this.resize(); }
+    if (q.ratio > 1.5) { q.ratio = 1.5; this.resize(); }
+    else if (this.gfx.post) { this.gfx.post = false; }
+    else if (q.ratio > 1) { q.ratio = 1; this.resize(); }
     else if (q.shadows) { q.shadows = false; this.renderer.shadowMap.enabled = false; this.match.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }
   }
 
@@ -105,10 +108,10 @@ class App {
     this.adaptQuality(dt);
     if (this.match) {
       this.match.update(dt);
-      this.match.render(this.renderer);
+      this.match.render(this.gfx);
     } else {
       this.menuScene.update(dt);
-      this.menuScene.render(this.renderer);
+      this.menuScene.render(this.gfx);
     }
   }
 }

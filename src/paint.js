@@ -31,36 +31,53 @@ export class Paint {
 
   drawBase() {
     const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
-    c.fillStyle = '#272a52';
-    c.fillRect(0, 0, W, H);
-    // checker tiles
+    // asphalt slabs (kept low in saturation: the floor shader detects paint by saturation)
+    const tones = ['#343a55', '#383e5a', '#30364f', '#363c58'];
     const tile = 4 * PPU;
     for (let y = 0; y < H / tile; y++) {
-      for (let x = 0; x < W / tile; x++) {
-        if ((x + y) % 2 === 0) { c.fillStyle = '#2d3160'; c.fillRect(x * tile, y * tile, tile, tile); }
-      }
+      for (let x = 0; x < W / tile; x++) { c.fillStyle = tones[(x * 7 + y * 13 + ((x * y) % 3)) % tones.length]; c.fillRect(x * tile, y * tile, tile, tile); }
     }
-    c.strokeStyle = 'rgba(255,255,255,0.05)';
+    for (let i = 0; i < 9000; i++) {
+      c.fillStyle = Math.random() < 0.5 ? `rgba(0,0,0,${Math.random() * 0.12})` : `rgba(255,255,255,${Math.random() * 0.05})`;
+      c.fillRect(Math.random() * W, Math.random() * H, 1 + Math.random() * 2, 1 + Math.random() * 2);
+    }
     c.lineWidth = 2;
-    for (let x = 0; x <= W; x += tile) { c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); }
-    for (let y = 0; y <= H; y += tile) { c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); }
-    // mid lane + centre circle
-    c.strokeStyle = 'rgba(255,255,255,0.10)';
-    c.lineWidth = 5;
+    for (let x = 0; x <= W; x += tile) { c.strokeStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke(); c.strokeStyle = 'rgba(255,255,255,0.04)'; c.beginPath(); c.moveTo(x + 2, 0); c.lineTo(x + 2, H); c.stroke(); }
+    for (let y = 0; y <= H; y += tile) { c.strokeStyle = 'rgba(0,0,0,0.3)'; c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke(); c.strokeStyle = 'rgba(255,255,255,0.04)'; c.beginPath(); c.moveTo(0, y + 2); c.lineTo(W, y + 2); c.stroke(); }
+    // lane band, centre line, centre circle
+    c.fillStyle = 'rgba(255,255,255,0.045)';
+    c.fillRect(0, H / 2 - 2.6 * PPU, W, 5.2 * PPU);
+    c.strokeStyle = 'rgba(255,255,255,0.2)';
+    c.lineWidth = 4;
+    c.strokeRect(0.6 * PPU, 0.6 * PPU, W - 1.2 * PPU, H - 1.2 * PPU);
     c.setLineDash([26, 20]);
     c.beginPath(); c.moveTo(W / 2, 0); c.lineTo(W / 2, H); c.stroke();
     c.setLineDash([]);
+    c.lineWidth = 5;
     c.beginPath(); c.arc(W / 2, H / 2, 4.2 * PPU, 0, Math.PI * 2); c.stroke();
-    c.fillStyle = 'rgba(255,255,255,0.035)';
-    c.fillRect(0, H / 2 - 2.6 * PPU, W, 5.2 * PPU);
-    // faint team tint around both bases
+    c.beginPath(); c.arc(W / 2, H / 2, 3.6 * PPU, 0, Math.PI * 2); c.stroke();
+    // chevrons pointing along the lane, away from each base
+    c.fillStyle = 'rgba(255,255,255,0.13)';
+    for (const dir of [-1, 1]) {
+      for (let k = 0; k < 5; k++) {
+        const x = W / 2 + dir * (7 + k * 3.4) * PPU, y = H / 2, s = 0.9 * PPU;
+        c.beginPath();
+        c.moveTo(x - dir * s, y - s * 1.3); c.lineTo(x, y); c.lineTo(x - dir * s, y + s * 1.3);
+        c.lineTo(x - dir * s * 1.7, y + s * 1.3); c.lineTo(x - dir * s * 0.7, y); c.lineTo(x - dir * s * 1.7, y - s * 1.3);
+        c.fill();
+      }
+    }
+    // base zones: faint team tint + arc
     for (let team = 0; team < 2; team++) {
       const px = (SPAWN[team].x + HALF_W) * PPU;
-      const g = c.createRadialGradient(px, H / 2, 10, px, H / 2, 13 * PPU);
-      g.addColorStop(0, TEAM_CSS[team] + '55');
+      const g = c.createRadialGradient(px, H / 2, 10, px, H / 2, 12 * PPU);
+      g.addColorStop(0, TEAM_CSS[team] + '3a');
       g.addColorStop(1, TEAM_CSS[team] + '00');
       c.fillStyle = g;
       c.fillRect(0, 0, W, H);
+      c.strokeStyle = 'rgba(255,255,255,0.16)';
+      c.lineWidth = 4;
+      c.beginPath(); c.arc(px, H / 2, 8.5 * PPU, 0, Math.PI * 2); c.stroke();
     }
   }
 

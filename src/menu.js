@@ -115,7 +115,7 @@ export class MenuScene {
     }
   }
 
-  render(renderer) { renderer.render(this.scene, this.camera); }
+  render(gfx) { gfx.render(this.scene, this.camera); }
 }
 
 const SKILL_ICON = { attack: '●', ability: '⚡', ult: '★' };

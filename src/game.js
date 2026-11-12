@@ -14,6 +14,7 @@ import { initAI, updateAI } from './ai.js';
 import { audio } from './audio.js';
 import { t } from './i18n.js';
 import { view } from './view.js';
+import { glow, glowMat, glowSprite } from './gfx.js';
 
 const HERO_R = 0.6;
 const TOWER_RANGE = 10;
@@ -102,7 +103,7 @@ export class Match {
     this.lastMinuteSaid = false;
 
     this.projGeo = new THREE.SphereGeometry(0.24, 10, 8);
-    this.projMat = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: new THREE.Color(c).lerp(new THREE.Color(0xffffff), 0.18) }));
+    this.projMat = TEAM_COLORS.map((c) => glowMat(c, 1.5));
     this.zoneGeo = new THREE.CircleGeometry(1, 40);
     this.ringGeo = new THREE.RingGeometry(0.93, 1, 48);
 
@@ -1036,7 +1037,7 @@ export class Match {
     }
   }
 
-  render(renderer) { renderer.render(this.scene, this.camera); }
+  render(gfx) { gfx.render(this.scene, this.camera); }
 
   dispose() {
     audio.stopMusic();
