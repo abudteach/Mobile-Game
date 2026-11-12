@@ -32,7 +32,7 @@ const shotgun = (m, h, a) => { for (const d of fan(a, 5, 0.17)) m.shoot(h, { dx:
 
 export const HEROES = [
   {
-    id: 'jaro', name: 'JARO', art: jaroArt, color: '#3fd18f',
+    id: 'jaro', name: 'JARO', art: jaroArt, aspect: 0.638, size: 1.0, color: '#3fd18f',
     role: T('Flitzer', 'Speedster'), tagline: T('Schneller als sein eigener Schatten.', 'Faster than his own shadow.'),
     hp: 3400, speed: 6.7, reload: 1.0, ammo: 3, range: 8.5, projSpeed: 22, prefDist: 5.5, ultCharge: 4200,
     aim: { type: 'line', width: 0.8 }, stats: { atk: 3, def: 2, spd: 5, paint: 3 },
@@ -46,7 +46,7 @@ export const HEROES = [
     ult: { range: 6, aim: 'self', radius: 6, ai: { type: 'near', range: 5 }, use(m, h) { m.startSpin(h, 2.6); } },
   },
   {
-    id: 'pippa', name: 'PIPPA', art: pippaArt, color: '#ff8a4a',
+    id: 'pippa', name: 'PIPPA', art: pippaArt, aspect: 0.700, size: 0.96, color: '#ff8a4a',
     role: T('Gärtnerin', 'Gardener'), tagline: T('Wo sie hintritt, wächst Farbe.', 'Wherever she steps, colour grows.'),
     hp: 3500, speed: 5.9, reload: 1.3, ammo: 3, range: 8, projSpeed: 14, prefDist: 5.5, ultCharge: 4000,
     aim: { type: 'cone', spread: 0.24 }, stats: { atk: 2, def: 3, spd: 3, paint: 5 },
@@ -60,7 +60,7 @@ export const HEROES = [
     ult: { range: 8, aim: 'area', radius: 5.5, ai: { type: 'area', range: 8 }, use(m, h, a) { m.addZone({ type: 'bloom', owner: h, x: h.x + a.dx * a.dist, z: h.z + a.dz * a.dist, r: 5.5, dur: 5, tick: 0.5, heal: 190, dmg: 120, paintN: 4 }); } },
   },
   {
-    id: 'zyro', name: 'ZYRO', art: zyroArt, color: '#4fd6b0',
+    id: 'zyro', name: 'ZYRO', art: zyroArt, aspect: 0.765, size: 1.06, color: '#4fd6b0',
     role: T('Kämpfer', 'Fighter'), tagline: T('Kristalldrache mit kurzer Zündschnur.', 'Crystal dragon with a short fuse.'),
     hp: 4300, speed: 5.8, reload: 1.25, ammo: 3, range: 7, projSpeed: 20, prefDist: 4.2, ultCharge: 4400,
     aim: { type: 'cone', spread: 0.16 }, stats: { atk: 4, def: 4, spd: 3, paint: 3 },
@@ -83,7 +83,7 @@ export const HEROES = [
     },
   },
   {
-    id: 'byte', name: 'BYTE', art: byteArt, face: [220, -8], color: '#ffb21f',
+    id: 'byte', name: 'BYTE', art: byteArt, aspect: 0.730, size: 0.9, face: [220, -8], color: '#ffb21f',
     role: T('Tüftler', 'Tinkerer'), tagline: T('Klein, frech, voll aufgeladen.', 'Small, cheeky, fully charged.'),
     hp: 3200, speed: 6.2, reload: 0.58, ammo: 4, range: 9.5, projSpeed: 26, prefDist: 7, ultCharge: 4000,
     aim: { type: 'line', width: 0.6 }, stats: { atk: 4, def: 2, spd: 4, paint: 3 },
@@ -97,7 +97,7 @@ export const HEROES = [
     ult: { range: 12, aim: 'cone', spread: 0.34, ai: { type: 'skillshot', range: 11 }, use(m, h, a) { fan(a, 3, 0.24).forEach((d, i) => m.after(i * 0.08, () => m.beam(h, d.dx, d.dz, 12, 0.85, 520))); } },
   },
   {
-    id: 'melli', name: 'MELLI', art: melliArt, color: '#f2b22e',
+    id: 'melli', name: 'MELLI', art: melliArt, aspect: 0.723, size: 1.0, color: '#f2b22e',
     role: T('Ingenieurin', 'Engineer'), tagline: T('Ihr Honig klebt. Ihre Bombe knallt.', 'Her honey sticks. Her bomb bangs.'),
     hp: 4600, speed: 5.5, reload: 1.4, ammo: 3, range: 6.2, projSpeed: 18, prefDist: 4, ultCharge: 4600,
     aim: { type: 'cone', spread: 0.3 }, stats: { atk: 4, def: 4, spd: 2, paint: 4 },
@@ -111,7 +111,7 @@ export const HEROES = [
     ult: megaBomb,
   },
   {
-    id: 'nimbi', name: 'NIMBI', art: nimbiArt, color: '#b49ae6',
+    id: 'nimbi', name: 'NIMBI', art: nimbiArt, aspect: 0.648, size: 0.96, color: '#b49ae6',
     role: T('Supporterin', 'Support'), tagline: T('Kopf in den Wolken, Team im Blick.', 'Head in the clouds, eyes on the team.'),
     hp: 3600, speed: 6.1, reload: 1.25, ammo: 3, range: 8, projSpeed: 14, prefDist: 5.5, ultCharge: 4000,
     aim: { type: 'cone', spread: 0.24 }, stats: { atk: 2, def: 2, spd: 4, paint: 5 },
@@ -123,7 +123,7 @@ export const HEROES = [
     attack: bubbles, ability: healPuddle, ult: tsunami,
   },
   {
-    id: 'luma', name: 'LUMA', art: lumaArt, face: [190, -8], color: '#ff7ab8',
+    id: 'luma', name: 'LUMA', art: lumaArt, aspect: 0.689, size: 1.0, face: [190, -8], color: '#ff7ab8',
     role: T('Scharfschützin', 'Sharpshooter'), tagline: T('Mondmagierin. Trifft von ganz weit weg.', 'Moon mage. Hits from very far away.'),
     hp: 2700, speed: 5.9, reload: 1.55, ammo: 3, range: 11.5, projSpeed: 30, prefDist: 8.5, ultCharge: 4000,
     aim: { type: 'line', width: 0.6 }, stats: { atk: 5, def: 1, spd: 3, paint: 4 },
@@ -137,7 +137,7 @@ export const HEROES = [
     ult: { range: 11, aim: 'area', radius: 5, ai: { type: 'area', range: 11 }, use(m, h, a) { m.addZone({ type: 'rain', owner: h, x: h.x + a.dx * a.dist, z: h.z + a.dz * a.dist, r: 5, dur: 4.2, tick: 0.4, dmg: 200, slow: 0.75, paintN: 4 }); } },
   },
   {
-    id: 'bruno', name: 'BRUNO', art: brunoArt, color: '#f0a92a',
+    id: 'bruno', name: 'BRUNO', art: brunoArt, aspect: 0.802, size: 1.1, color: '#f0a92a',
     role: T('Tank', 'Tank'), tagline: T('Zwei Tanks auf dem Rücken, einer im Namen.', 'Two tanks on his back, one in his job title.'),
     hp: 5400, speed: 5.2, reload: 1.45, ammo: 3, range: 6.2, projSpeed: 19, prefDist: 3.6, ultCharge: 4800,
     aim: { type: 'cone', spread: 0.36 }, stats: { atk: 4, def: 5, spd: 2, paint: 4 },
@@ -150,7 +150,7 @@ export const HEROES = [
     ult: { range: 8.5, aim: 'cone', spread: 0.34, ai: { type: 'skillshot', range: 6.5 }, use(m, h, a) { m.spray(h, a.dx, a.dz, 2.6, 0.3, { speed: 20, range: 8.5, dmg: 150, paintR: 1.25, trailR: 0.8, size: 1.15 }); } },
   },
   {
-    id: 'skye', name: 'SKYE', art: skyeArt, color: '#2ee0d0',
+    id: 'skye', name: 'SKYE', art: skyeArt, aspect: 0.594, size: 1.0, color: '#2ee0d0',
     role: T('Fliegerin', 'Flyer'), tagline: T('Kommt von oben. Ist schon wieder weg.', 'Comes from above. Already gone again.'),
     hp: 3300, speed: 6.5, reload: 1.1, ammo: 3, range: 9.5, projSpeed: 24, prefDist: 6.5, ultCharge: 4200,
     aim: { type: 'line', width: 0.7 }, stats: { atk: 3, def: 2, spd: 5, paint: 3 },
@@ -164,7 +164,7 @@ export const HEROES = [
     ult: { range: 12.5, aim: 'line', width: 5, ai: { type: 'skillshot', range: 10 }, use(m, h, a) { for (let i = 0; i < 4; i++) m.after(i * 0.14, () => m.lob(h, h.x + a.dx * (3.2 + i * 3.1), h.z + a.dz * (3.2 + i * 3.1), { time: 0.55, dmg: 600, radius: 2.8, paintR: 3.0, knock: 4, size: 0.5 })); } },
   },
   {
-    id: 'grom', name: 'GROM', art: gromArt, face: [330, -44], color: '#f07a2a',
+    id: 'grom', name: 'GROM', art: gromArt, aspect: 0.964, size: 1.22, face: [330, -44], color: '#f07a2a',
     role: T('Koloss', 'Juggernaut'), tagline: T('Langsam. Aber versuch mal, ihn aufzuhalten.', 'Slow. But try stopping him.'),
     hp: 6200, speed: 4.9, reload: 1.6, ammo: 3, range: 7, projSpeed: 16, prefDist: 3.8, ultCharge: 5000,
     aim: { type: 'line', width: 1.2 }, stats: { atk: 3, def: 5, spd: 1, paint: 5 },

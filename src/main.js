@@ -59,9 +59,9 @@ class App {
     const cam = new THREE.PerspectiveCamera(30, view.w / view.h, 0.1, 100);
     const top = params.get('models') === 'top';
     cam.position.set(0, top ? 17.6 : 7, top ? 12 : 22); cam.lookAt(0, top ? 0 : 1.2, top ? -0.6 : 0);
-    const list = HEROES.map((h, i) => { const m = buildHero(h.id, i % 2); m.root.position.set((i % 5 - 2) * 3.4 + (i < 5 ? 0.8 : -0.8), 0, i < 5 ? -3 : 2.4); m.root.rotation.y = 0.3; scene.add(m.root); return m; });
+    const list = HEROES.map((h, i) => { const m = buildHero(h, i % 2); m.root.position.set((i % 5 - 2) * 3.6 + (i < 5 ? 0.9 : -0.9), 0, i < 5 ? -3 : 2.4); scene.add(m.root); return m; });
     let t = 0;
-    this.menuScene = { resize() {}, update: (dt) => { t += dt; for (const m of list) animateHero(m, t, dt, { moving: params.get('walk') ? 1 : 0, kick: 0 }); }, render: (gfx) => gfx.render(scene, cam) };
+    this.menuScene = { resize() {}, update: (dt) => { t += dt; for (const m of list) animateHero(m, t, dt, { moving: params.get('walk') ? 1 : 0, kick: 0, dir: params.get('walk') ? t * 0.8 : 0.9, vx: Math.sin(t * 0.8) }); }, render: (gfx) => gfx.render(scene, cam) };
   }
 
   showMenu() {

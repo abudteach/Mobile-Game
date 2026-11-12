@@ -5,7 +5,7 @@ import {
 } from './config.js';
 import { Paint } from './paint.js';
 import { buildArena, resolveCollisions, steer, segBox, pointInBox, clearLine, BOXES } from './world.js';
-import { buildHero, prepHero, animateHero, buildMinion, buildTower, buildCore } from './models.js';
+import { buildHero, animateHero, buildMinion, buildTower, buildCore } from './models.js';
 import { HEROES, heroById } from './heroes.js';
 import { Fx } from './fx.js';
 import { Hud } from './hud.js';
@@ -170,7 +170,7 @@ export class Match {
           kills: 0, deaths: 0, painted: 0, dmgDone: 0, streak: 0, streakT: 0,
           cmd: { mx: 0, mz: 0 }, animT: Math.random() * 10,
         };
-        h.model = prepHero(buildHero(def.id, team));
+        h.model = buildHero(def, team);
         h.model.root.position.set(h.x, 0, h.z);
         this.scene.add(h.model.root);
         // team ring on the ground
@@ -709,22 +709,29 @@ export class Match {
     // facing
     let want = h.dir;
     if (h.aimHold <= 0 && cmdLen > 0.15) want = Math.atan2(h.cmd.mx, h.cmd.mz);
-    let diff = want - m.root.rotation.y;
-    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
     if (h.aimHold <= 0) h.dir = want;
-    m.root.rotation.y += diff * Math.min(1, dt * 16);
-    if (h.spin) m.rig.rotation.y += dt * 22; else m.rig.rotation.y = 0;
 
     h.kick = Math.max(0, h.kick - dt * 5);
     h.animT += dt * (onOwn ? 1.15 : 1);
-    animateHero(m, h.animT, dt, { moving: h.moving, kick: Math.min(1, h.kick), cheer: this.state === 'ended' && this.result && this.result.winner === h.team });
+    animateHero(m, h.animT, dt, { moving: h.moving, kick: Math.min(1, h.kick), dir: h.dir, vx: h.cmd.mx, spin: !!h.spin, clear: this.clearBehind(h), cheer: this.state === 'ended' && this.result && this.result.winner === h.team });
     m.root.position.set(h.x, h.dash ? 0.25 : 0, h.z);
     h.ring.position.set(h.x, 0.06, h.z);
-    h.ui.position.set(h.x, 3.9, h.z);
+    h.ui.position.set(h.x, m.topY + 0.6, h.z + m.topZ);
     h.bar.set(h.hp / h.maxHp);
     if (h.ammoBar) h.ammoBar.set((h.ammo + (h.ammo < h.def.ammo ? h.reload : 0)) / h.def.ammo);
     h.bubble.visible = h.shield > 0;
     if (h.bubble.visible) h.bubble.position.set(h.x, 1.1, h.z);
+  }
+
+  // Free space right behind (north of) a hero: figures lean back, so they straighten up next to walls.
+  clearBehind(h) {
+    let clear = 3;
+    for (let d = 0.6; d <= 1.8; d += 0.3) if (pointInBox(h.x, h.z - d, 0.1) || h.z - d < -HALF_H) { clear = d - 0.5; break; }
+    for (const s of this.structures) {
+      if (!s.alive || s.z > h.z || Math.abs(s.x - h.x) > s.radius + 0.4) continue;
+      clear = Math.min(clear, h.z - s.z - s.radius - 0.2);
+    }
+    return Math.max(0, clear);
   }
 
   spawnWave() {
@@ -969,7 +976,7 @@ export class Match {
         this.hud.announce('');
         audio.startMusic();
       }
-      for (const h of this.heroes) { h.animT += dt; animateHero(h.model, h.animT, dt, { moving: 0, kick: 0 }); h.ring.position.set(h.x, 0.06, h.z); h.ui.position.set(h.x, 3.9, h.z); h.bar.set(1); if (h.ammoBar) h.ammoBar.set(1); }
+      for (const h of this.heroes) { h.animT += dt; animateHero(h.model, h.animT, dt, { moving: 0, kick: 0, dir: h.dir }); h.ring.position.set(h.x, 0.06, h.z); h.ui.position.set(h.x, h.model.topY + 0.6, h.z + h.model.topZ); h.bar.set(1); if (h.ammoBar) h.ammoBar.set(1); }
       for (const s of this.structures) this.updateStructure(s, 0, false);
       this.updateCamera(dt);
       this.arena.update(this.time, this.cam);
