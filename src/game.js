@@ -14,7 +14,7 @@ import { initAI, updateAI } from './ai.js';
 import { audio } from './audio.js';
 import { t, tr } from './i18n.js';
 import { view } from './view.js';
-import { glow, glowMat, glowSprite, bubbleMat } from './gfx.js';
+import { glow, glowMat, glowSprite, bubbleMat, perf } from './gfx.js';
 
 const HERO_R = 0.6;
 const TOWER_RANGE = 10;
@@ -274,7 +274,7 @@ export class Match {
         this.scene.add(h.ui);
         h.label.draw(h.name, 1, TEAM_CSS[team]);
         initAI(h, lanes[team][slot]);
-        if (isPlayer) this.player = h;
+        if (isPlayer) { this.player = h; h.skin = this.opts.skin || null; }
         this.heroes.push(h);
       }
     }
@@ -348,15 +348,16 @@ export class Match {
     const side = o.side || 0, ox = o.from ? o.from.x : h.x, oz = o.from ? o.from.z : h.z;
     let px = ox + o.dx * 0.7 + o.dz * side, pz = oz + o.dz * 0.7 - o.dx * side;
     if (pointInBox(px, pz, 0.1)) { px = ox; pz = oz; }
-    const styleName = o.style || (h.kind === 'hero' && h.def.shot) || 'blob';
+    const styleName = o.style || (h.skin && h.skin.style) || (h.kind === 'hero' && h.def.shot) || 'blob';
     const style = this.shotStyles[styleName] || this.shotStyles.blob;
     const mesh = new THREE.Mesh(style[0], styleName === 'bubble' ? this.bubbleMats[h.team] : this.projMat[h.team]);
     const s = o.size || 1;
     mesh.scale.set(s * style[1][0], s * style[1][1], s * style[1][2]);
     mesh.userData.roll = style[2];
+    mesh.userData.spark = (h.skin && h.skin.color) || 0;
     mesh.rotation.y = Math.atan2(o.dx, o.dz);
     mesh.position.set(px, 1, pz);
-    mesh.add(this.halo(h.team, 2.1));
+    if (!perf.mobile && !perf.lite) mesh.add(this.halo(h.team, 2.1));
     this.scene.add(mesh);
     if (h.kind === 'hero' && !o.from) this.fx.flash(px, 1.1, pz, TEAM_COLORS[h.team], 1.2);
     this.projectiles.push({
@@ -1118,6 +1119,7 @@ export class Match {
         p.mesh.position.set(p.x, 1 - 0.65 * k * k, p.z);
         if (p.homing) p.mesh.rotation.y = Math.atan2(p.dx, p.dz);
         if (p.mesh.userData.roll) p.mesh.rotation.z += dt * p.mesh.userData.roll;
+        if (p.mesh.userData.spark && Math.random() < dt * 22) this.fx.splash(p.x, 0.9, p.z, p.mesh.userData.spark, 1, 1.6);
       }
     }
 
@@ -1288,7 +1290,7 @@ export class Match {
     const p = this.player;
     let tx = p.x, tz = p.z;
     if (this.state === 'ended' && this.result.reason === 'core') { const c = this.cores[1 - this.result.winner]; tx = c.x; tz = c.z; }
-    tx = Math.max(-HALF_W + 9, Math.min(HALF_W - 9, tx));
+    tx = Math.max(-HALF_W + 12, Math.min(HALF_W - 12, tx));
     tz = Math.max(-HALF_H + 3, Math.min(HALF_H - 2, tz));
     const k = Math.min(1, dt * 6);
     this.cam.x += (tx - this.cam.x) * k;
@@ -1296,7 +1298,7 @@ export class Match {
     const intro = this.state === 'countdown' ? Math.max(0, (this.count - 0.6) / 3) : 0;
     const zoom = this.camZoom * (1 + intro * 0.9);
     const sh = this.fx.shake * this.fx.shake * 0.6;
-    this.camera.position.set(this.cam.x + (Math.random() - 0.5) * sh, 17.6 * zoom, this.cam.z + 12 * zoom + (Math.random() - 0.5) * sh);
+    this.camera.position.set(this.cam.x + (Math.random() - 0.5) * sh, 21.6 * zoom, this.cam.z + 14.7 * zoom + (Math.random() - 0.5) * sh);
     this.camera.lookAt(this.cam.x, 0, this.cam.z - 0.6);
   }
 

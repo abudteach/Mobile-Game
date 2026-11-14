@@ -4,7 +4,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { clone as cloneRig } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries, deinterleaveGeometry } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TEAM_COLORS } from './config.js';
-import { addRim, glow } from './gfx.js';
+import { addRim, glow, perf } from './gfx.js';
 
 // ---------- shared toon look ----------
 const gradientMap = (() => {
@@ -122,7 +122,7 @@ function buildFigure(def, team = 0) {
   const flash = { value: 0 };
   const root = new THREE.Group();
   const tilt = grp(root);
-  const H = 3.1 * (def.size || 1), W = H * def.aspect;
+  const H = 3.5 * (def.size || 1), W = H * def.aspect;
   const tex = artTexture(def);
   const uniforms = {
     map: { value: tex }, uTexel: { value: new THREE.Vector2(1 / (660 * def.aspect), 1 / 660) },
@@ -204,7 +204,7 @@ export function buildMinion(team) {
 // ---------- 3D hero models (GLB with skeleton and animation clips) ----------
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 const assets = new Map(); // hero id -> { scene, clips }
-const MODEL_SCALE = 2.55;   // the source models are about one unit tall
+const MODEL_HEIGHT = 2.7;   // world height every model is scaled to (times the hero's size3d)
 const LOWER_BODY = /^(Root|Hips|Thigh|Shin|Foot)/;
 const LOCO = ['Idle', 'RunForward', 'WalkBackward', 'StrafeLeft', 'StrafeRight'];
 
@@ -244,11 +244,16 @@ async function loadModel(def) {
     clips[c.name] = c;
     if (c.name === 'Attack' || c.name === 'Special' || c.name === 'HitReact') clips[`${c.name}Upper`] = new THREE.AnimationClip(`${c.name}Upper`, c.duration, c.tracks.filter((tr) => !LOWER_BODY.test(tr.name)));
   }
-  assets.set(def.id, { scene: gltf.scene, clips });
+  // measure the real (skinned) height so every model can be scaled to the same world size
+  gltf.scene.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  gltf.scene.traverse((o) => { if (o.isSkinnedMesh) { o.computeBoundingBox(); box.union(o.boundingBox.clone().applyMatrix4(o.matrixWorld)); } });
+  const height = box.isEmpty() ? 1 : box.max.y - Math.min(0, box.min.y);
+  assets.set(def.id, { scene: gltf.scene, clips, height });
 }
 
 export const preloadHeroModels = (defs) => Promise.all(defs.filter((d) => d.model).map(loadModel));
-export const hasModel = (def) => assets.has(def.id);
+export const hasModel = (def) => !!def && assets.has(def.id);
 
 function buildRigged(def, team = 0) {
   const asset = assets.get(def.id);
@@ -256,13 +261,13 @@ function buildRigged(def, team = 0) {
   const root = new THREE.Group();
   const inner = grp(root);
   const rig = cloneRig(asset.scene);
-  const scale = MODEL_SCALE * (def.size3d || 1);
+  const tall = MODEL_HEIGHT * (def.size3d || 1), scale = tall / asset.height;
   inner.scale.setScalar(scale);
   inner.add(rig);
   const bodyMat = addRim(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0 }), flash, 1.0, 0.3);
   const teamCol = new THREE.Color(TEAM_COLORS[team]);
   const weaponMat = addRim(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0, color: teamCol.clone().lerp(new THREE.Color(0xffffff), 0.45), emissive: teamCol, emissiveIntensity: 0.5 }), flash, 1.0, 0.2);
-  const meshes = [];
+  const meshes = [], hulls = [];
   rig.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o); });
   for (const o of meshes) {
     o.material = /weapon/i.test(o.name) || /weapon/i.test(o.parent.name) ? weaponMat : bodyMat;
@@ -271,6 +276,8 @@ function buildRigged(def, team = 0) {
     const hull = new THREE.SkinnedMesh(o.geometry, RIG_OUTLINE);
     hull.bind(o.skeleton, o.bindMatrix);
     hull.frustumCulled = false;
+    hull.visible = !perf.lite;
+    hulls.push(hull);
     o.parent.add(hull);
   }
   const mixer = new THREE.AnimationMixer(rig);
@@ -282,8 +289,8 @@ function buildRigged(def, team = 0) {
     act[name] = a;
   }
   const m = {
-    is3d: true, root, inner, rig, flash, mixer, act, team, yaw: team === 0 ? Math.PI / 2 : -Math.PI / 2, w: { Idle: 1, RunForward: 0, WalkBackward: 0, StrafeLeft: 0, StrafeRight: 0 },
-    topY: scale * 1.02, topZ: 0, hitCd: 0, down: false,
+    is3d: true, root, inner, rig, flash, mixer, act, team, hulls, yaw: team === 0 ? Math.PI / 2 : -Math.PI / 2, w: { Idle: 1, RunForward: 0, WalkBackward: 0, StrafeLeft: 0, StrafeRight: 0 },
+    topY: tall * 1.03, topZ: 0, hitCd: 0, down: false,
     // one-shot animations: Attack, Special, HitReact (upper body), KO, Respawn (whole body)
     trigger(name) {
       if (name === 'HitReact') { if (m.hitCd > 0 || m.down) return; m.hitCd = 0.6; }
@@ -324,6 +331,7 @@ function animateRigged(m, t, dt, s) {
     for (const n of LOCO) { m.w[n] += ((n === want ? 1 : 0) - m.w[n]) * k; m.act[n].setEffectiveWeight(m.w[n]); }
     m.act.RunForward.timeScale = 1.35;
   }
+  if (m.hulls[0] && m.hulls[0].visible === perf.lite) for (const h of m.hulls) h.visible = !perf.lite;
   m.mixer.update(dt);
 }
 

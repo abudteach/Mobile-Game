@@ -46,9 +46,17 @@ die kein anderer hat (`src/heroes.js`).
 - **Farb-Schild:** Türme und Kern nehmen nur dann vollen Schaden, wenn der Boden um sie herum in deiner Farbe ist.
 - **Turm-Regel:** Türme schießen zuerst auf Blobs. Ohne Blobs (oder Funks Geschütz) als Deckung trifft es dich.
 
+## Waffen, Skins und Münzen
+
+Jeder Held hat eine eigene Waffe (Name im Menü). Im Menü unter „Waffen" lassen sich Waffen-Skins mit Münzen kaufen
+und pro Held ausrüsten. Ein Skin ändert Form und Funkenfarbe der Schüsse, nie die Stärke. Münzen gibt es nach jedem
+Match (Sieg 50, Niederlage 20, plus K.O.s und gemalte Fläche). Gespeichert wird lokal auf dem Gerät (`src/store.js`).
+
+Über „3D ansehen" zeigt das Menü das 3D-Modell des Helden mit Waffe: ziehen dreht es, antippen spielt den Angriff.
+
 ## Figuren im Match
 
-Im Match laufen geriggte 3D-Modelle (`src/assets/models/*.glb`) mit Skelett und elf Animationen (Stehen, Laufen,
+Standard im Match sind die Artwork-Figuren; über den Schalter „Im Match" im Menü laufen stattdessen geriggte 3D-Modelle (`src/assets/models/*.glb`) mit Skelett und elf Animationen (Stehen, Laufen,
 Rückwärts, Seitwärts, Angriff, Spezial, Treffer, K.O., Respawn). Die Beine folgen der Laufrichtung, der Oberkörper
 spielt Angriff und Spezial darüber. Die Waffe leuchtet in der Teamfarbe.
 

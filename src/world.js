@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeom
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MAP_W, MAP_H, HALF_W, HALF_H, OBSTACLES, SPAWN, TEAM_COLORS, TEAM_CSS } from './config.js';
 import { toon } from './models.js';
-import { glow, glowMat, glowSprite, addRim, canvasTexture } from './gfx.js';
+import { glow, glowMat, glowSprite, addRim, canvasTexture, perf } from './gfx.js';
 
 const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x120d2b, side: THREE.BackSide });
 const PX = 44; // texture pixels per world unit for cover blocks
@@ -176,7 +176,7 @@ function addLights(scene) {
   scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x6a3f8a, 1.15));
   const sun = new THREE.DirectionalLight(0xffe9cc, 2.3);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(perf.mobile ? 1024 : 2048, perf.mobile ? 1024 : 2048);
   const sc = sun.shadow.camera;
   sc.left = -26; sc.right = 26; sc.top = 20; sc.bottom = -22; sc.near = 1; sc.far = 80;
   sun.shadow.bias = -0.0012;

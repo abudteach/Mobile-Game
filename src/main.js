@@ -4,10 +4,11 @@ import '@fontsource/fredoka/latin-700.css';
 import './style.css';
 import { Match } from './game.js';
 import { MenuScene, MenuUI, ResultUI, addTrophies } from './menu.js';
+import { addCoins, equippedSkin } from './store.js';
 import { audio } from './audio.js';
-import { Gfx } from './gfx.js';
+import { Gfx, perf } from './gfx.js';
 import { view, updateView } from './view.js';
-import { HEROES } from './heroes.js';
+import { HEROES, skinById } from './heroes.js';
 import { preloadHeroModels, renderPortrait, hasModel } from './models.js';
 import { t } from './i18n.js';
 
@@ -30,7 +31,7 @@ class App {
     this.resultUI = null;
     this.heroId = 'kio';
     this.last = performance.now();
-    this.quality = { ratio: Math.min(window.devicePixelRatio || 1, 2), slow: 0, shadows: true };
+    this.quality = { ratio: Math.min(window.devicePixelRatio || 1, perf.mobile ? 1.5 : 2), slow: 0, shadows: true };
 
     window.addEventListener('resize', () => this.resize());
     window.addEventListener('orientationchange', () => setTimeout(() => this.resize(), 250));
@@ -63,7 +64,7 @@ class App {
   get figures() {
     const forced = params.get('fig');
     if (forced) return forced;
-    try { return localStorage.getItem('dc_fig') || '3d'; } catch { return '3d'; }
+    try { return localStorage.getItem('dc_fig') || 'art'; } catch { return 'art'; }
   }
 
   resize() {
@@ -93,7 +94,7 @@ class App {
   showMenu() {
     this.clear();
     document.body.classList.add('in-menu');
-    this.menuUI = new MenuUI(this.hudRoot, (id) => { this.goFullscreen(); this.startMatch(id); });
+    this.menuUI = new MenuUI(this.hudRoot, this.menuScene, (id) => { this.goFullscreen(); this.startMatch(id); });
   }
 
   startMatch(heroId) {
@@ -101,7 +102,7 @@ class App {
     document.body.classList.remove('in-menu');
     this.heroId = heroId;
     this.renderer.shadowMap.enabled = this.quality.shadows;
-    this.match = new Match(this, heroId, { autoplay: params.get('autoplay') === '1', speed: parseFloat(params.get('speed')) || 1, comp: params.get('comp'), figures: this.figures });
+    this.match = new Match(this, heroId, { autoplay: params.get('autoplay') === '1', speed: parseFloat(params.get('speed')) || 1, comp: params.get('comp'), figures: this.figures, skin: skinById(equippedSkin(heroId)) });
     window.__match = this.match; // handy for debugging in the console
   }
 
@@ -109,8 +110,11 @@ class App {
     const win = result.winner === result.playerTeam;
     const delta = result.winner === null ? 0 : win ? 8 + (result.mvp.isPlayer ? 2 : 0) : -3;
     addTrophies(delta);
+    const me = result.stats.find((s) => s.isPlayer);
+    const coins = (result.winner === null ? 30 : win ? 50 : 20) + me.kills * 5 + Math.floor(me.painted / 800);
+    addCoins(coins);
     this.match.hud.el.classList.add('faded');
-    this.resultUI = new ResultUI(this.hudRoot, result, delta, () => this.startMatch(this.heroId), () => this.showMenu());
+    this.resultUI = new ResultUI(this.hudRoot, result, delta, coins, () => this.startMatch(this.heroId), () => this.showMenu());
   }
 
   clear() {
@@ -133,10 +137,11 @@ class App {
   adaptQuality(dt) {
     const q = this.quality;
     if (!this.match || document.hidden) { q.slow = 0; return; }
-    q.slow = dt > 1 / 38 ? q.slow + 1 : Math.max(0, q.slow - 2);
-    if (q.slow < 90) return;
+    q.slow = dt > 1 / 45 ? q.slow + 1 : Math.max(0, q.slow - 1);
+    if (q.slow < 40) return;
     q.slow = 0;
-    if (q.ratio > 1.5) { q.ratio = 1.5; this.resize(); }
+    if (!perf.lite) perf.lite = true;
+    else if (q.ratio > 1.25) { q.ratio = 1.25; this.resize(); }
     else if (this.gfx.post) { this.gfx.post = false; }
     else if (q.ratio > 1) { q.ratio = 1; this.resize(); }
     else if (q.shadows) { q.shadows = false; this.renderer.shadowMap.enabled = false; this.match.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); }

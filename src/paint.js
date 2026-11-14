@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { MAP_W, MAP_H, HALF_W, HALF_H, CELL, TEAM_CSS, SPAWN } from './config.js';
 
-const PPU = 16; // canvas pixels per world unit
+const MOBILE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+const PPU = MOBILE ? 12 : 16; // canvas pixels per world unit (smaller texture uploads on phones)
 const VARIANTS = [
   ['#18d6ff', '#37e0ff', '#0cc4f2'],
   ['#ff2f8e', '#ff4fa2', '#f51c7c'],
@@ -193,7 +194,7 @@ export class Paint {
     if (this.dirty && this.uploadT <= 0) {
       this.texture.needsUpdate = true;
       this.dirty = false;
-      this.uploadT = 0.033;
+      this.uploadT = MOBILE ? 0.07 : 0.033;
     }
   }
 

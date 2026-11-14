@@ -4,6 +4,10 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
+// Device class and current detail level. `lite` is switched on when frames get slow:
+// it drops projectile halos and model outlines first, before resolution or shadows.
+export const perf = { mobile: typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches, lite: false };
+
 // Render pipeline: HDR target -> bloom -> tone mapping. Only colours brighter than 1.0
 // bloom, so "glow" materials are simply given colours above 1 (see `glow()`).
 export class Gfx {
@@ -12,7 +16,7 @@ export class Gfx {
     this.post = true;
     renderer.toneMapping = THREE.NeutralToneMapping;
     renderer.toneMappingExposure = 1.0;
-    const target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+    const target = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: perf.mobile ? 0 : 4 });
     this.composer = new EffectComposer(renderer, target);
     this.renderPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera());
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.26, 0.4, 1.0);
