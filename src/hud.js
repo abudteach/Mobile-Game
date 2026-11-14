@@ -30,6 +30,7 @@ export class Hud {
       <div class="level"><span class="lv">1</span><div class="xp"><div class="xpf"></div></div></div>
       <div class="feed"></div>
       <div class="announce"></div>
+      <div class="pulse"></div>
       <div class="respawn"></div>
       <div class="talents"></div>
       <div class="tips"></div>
@@ -139,6 +140,14 @@ export class Hud {
       row.appendChild(b);
     });
     this.talentEl.appendChild(row);
+  }
+
+  // full-screen feedback: 'hurt', 'kill', 'ult', 'dead'
+  pulse(kind) {
+    const el = this.q('.pulse');
+    el.className = 'pulse';
+    void el.offsetWidth;
+    el.className = `pulse ${kind}`;
   }
 
   respawn(sec) {

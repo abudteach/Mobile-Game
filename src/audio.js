@@ -62,7 +62,7 @@ class AudioFX {
     s.stop(t0 + dur + 0.02);
   }
 
-  shoot(v = 1) { this.tone(620, 0.09, { type: 'square', vol: 0.1 * v, slide: -380 }); this.noise(0.08, { vol: 0.16 * v, freq: 2400, slide: -1600 }); }
+  shoot(v = 1, pitch = 1) { this.tone(620 * pitch, 0.09, { type: 'square', vol: 0.1 * v, slide: -380 * pitch }); this.noise(0.08, { vol: 0.16 * v, freq: 2400 * pitch, slide: -1600 * pitch }); }
   splat(v = 1) { this.noise(0.16, { vol: 0.22 * v, freq: 700, q: 0.7, slide: -500 }); }
   hit(v = 1) { this.tone(240, 0.07, { type: 'triangle', vol: 0.2 * v, slide: -120 }); }
   boom(v = 1) { this.noise(0.5, { vol: 0.5 * v, freq: 300, q: 0.5, slide: -220 }); this.tone(110, 0.4, { type: 'sine', vol: 0.4 * v, slide: -70 }); }

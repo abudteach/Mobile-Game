@@ -104,6 +104,22 @@ export class Match {
 
     this.projGeo = new THREE.SphereGeometry(0.24, 10, 8);
     this.projMat = TEAM_COLORS.map((c) => glowMat(c, 1.5));
+    // every hero's shots have their own shape: [geometry, scale x/y/z, roll speed]
+    this.shotStyles = {
+      blob: [this.projGeo, [1, 1, 1.6], 0],
+      bolt: [new THREE.CapsuleGeometry(0.11, 0.55, 4, 8).rotateX(Math.PI / 2), [1, 1, 1.3], 0],
+      shard: [new THREE.OctahedronGeometry(0.27), [0.7, 0.7, 2.3], 14],
+      feather: [new THREE.ConeGeometry(0.2, 0.75, 4).rotateX(Math.PI / 2), [1.2, 0.45, 1.2], 0],
+      honey: [new THREE.CylinderGeometry(0.25, 0.25, 0.3, 6).rotateX(Math.PI / 2), [1, 1, 1], 6],
+      seed: [new THREE.SphereGeometry(0.22, 8, 6), [0.8, 0.8, 1.9], 9],
+      bubble: [new THREE.SphereGeometry(0.3, 14, 10), [1, 1, 1], 0],
+      moon: [new THREE.TorusGeometry(0.22, 0.09, 6, 14, Math.PI * 1.3).rotateX(Math.PI / 2), [1.2, 1.2, 1.2], 10],
+      water: [new THREE.SphereGeometry(0.26, 12, 9), [1, 0.9, 1.3], 0],
+      wisp: [new THREE.ConeGeometry(0.2, 0.7, 6).rotateX(-Math.PI / 2), [1, 1, 1.2], 16],
+    };
+    this.bubbleMats = TEAM_COLORS.map((c) => new THREE.MeshBasicMaterial({ color: glow(c, 1.1), transparent: true, opacity: 0.6, depthWrite: false }));
+    this.freeze = 0;   // hit-stop: the world holds still for a few frames on big moments
+    this.slowmo = 0;
     this.zoneGeo = new THREE.CircleGeometry(1, 40);
     this.ringGeo = new THREE.RingGeometry(0.93, 1, 48);
 
@@ -332,9 +348,12 @@ export class Match {
     const side = o.side || 0, ox = o.from ? o.from.x : h.x, oz = o.from ? o.from.z : h.z;
     let px = ox + o.dx * 0.7 + o.dz * side, pz = oz + o.dz * 0.7 - o.dx * side;
     if (pointInBox(px, pz, 0.1)) { px = ox; pz = oz; }
-    const mesh = new THREE.Mesh(this.projGeo, this.projMat[h.team]);
+    const styleName = o.style || (h.kind === 'hero' && h.def.shot) || 'blob';
+    const style = this.shotStyles[styleName] || this.shotStyles.blob;
+    const mesh = new THREE.Mesh(style[0], styleName === 'bubble' ? this.bubbleMats[h.team] : this.projMat[h.team]);
     const s = o.size || 1;
-    mesh.scale.set(s, s, s * 1.6);
+    mesh.scale.set(s * style[1][0], s * style[1][1], s * style[1][2]);
+    mesh.userData.roll = style[2];
     mesh.rotation.y = Math.atan2(o.dx, o.dz);
     mesh.position.set(px, 1, pz);
     mesh.add(this.halo(h.team, 2.1));
@@ -515,7 +534,7 @@ export class Match {
     h.kick = 1;
     h.def.attack(this, h, aim);
     h.model.trigger?.('Attack');
-    if (h.isPlayer) audio.shoot(1); else if (this.near(h.x, h.z, 16)) audio.shoot(0.35);
+    if (h.isPlayer) audio.shoot(1, h.def.pitch); else if (this.near(h.x, h.z, 16)) audio.shoot(0.35, h.def.pitch);
     return true;
   }
 
@@ -540,7 +559,8 @@ export class Match {
     h.def.ult.use(this, h, aim);
     h.model.trigger?.('Special');
     if (this.near(h.x, h.z, 20)) audio.ult();
-    if (h.isPlayer) this.fx.addShake(0.35);
+    if (h.isPlayer) { this.fx.addShake(0.35); this.slowmo = 0.22; this.hud.pulse('ult'); }
+    if (this.near(h.x, h.z, 18)) this.floatText(h, tr(h.def.desc.ult.name).toUpperCase() + '!', h.team === this.player.team ? 'ult-a' : 'ult-b');
     return true;
   }
 
@@ -672,9 +692,9 @@ export class Match {
       owner.dmgDone += amount;
       this.addUlt(owner, amount / owner.def.ultCharge);
       if (owner.mod.vamp && owner.alive && (u.kind === 'hero' || u.kind === 'minion')) this.heal(owner, amount * owner.mod.vamp, true);
-      if (owner.isPlayer) { this.floatText(u, amount, u.kind === 'hero' ? 'dmg' : 'dmg small'); audio.hit(0.7); }
+      if (owner.isPlayer) { this.floatText(u, amount, amount >= 600 ? 'dmg crit' : u.kind === 'hero' ? 'dmg' : 'dmg small'); audio.hit(amount >= 600 ? 1 : 0.7); if (amount >= 600) this.fx.addShake(0.2); }
     }
-    if (u.isPlayer) { this.floatText(u, `-${amount}`, 'hurt'); this.fx.addShake(0.12); }
+    if (u.isPlayer) { this.floatText(u, `-${amount}`, 'hurt'); this.fx.addShake(0.12); if (amount > 150) this.hud.pulse('hurt'); }
     if (u.hp <= 0) this.kill(u, owner, src);
     else if (u.kind === 'hero' && u.hp < u.maxHp * 0.3) this.guardian(u);
     return amount;
@@ -763,12 +783,13 @@ export class Match {
         killer.streakT = 7;
         if (killer.isPlayer) {
           audio.kill();
+          this.freeze = 0.09; this.fx.addShake(0.5); this.hud.pulse('kill'); this.floatText(u, 'K.O.!', 'ko');
           if (killer.streak === 2) this.announce(t('doubleKill'), '#ffe36b');
           else if (killer.streak >= 3) this.announce(t('tripleKill'), '#ffe36b');
         }
       }
       for (const h of this.heroes) if (h.team === enemy && h !== killer && h.alive && dist(h, u) < 12) this.addXp(h, 60);
-      if (u.isPlayer) audio.death();
+      if (u.isPlayer) { audio.death(); this.freeze = 0.12; this.hud.pulse('dead'); }
     } else if (u.kind === 'minion') {
       this.paint.paint(u.x, u.z, 1.25, enemy);
       this.fx.splash(u.x, 0.5, u.z, col, 10, 5);
@@ -1096,6 +1117,7 @@ export class Match {
         const k = Math.max(0, (p.dist / p.range - 0.7) / 0.3);
         p.mesh.position.set(p.x, 1 - 0.65 * k * k, p.z);
         if (p.homing) p.mesh.rotation.y = Math.atan2(p.dx, p.dz);
+        if (p.mesh.userData.roll) p.mesh.rotation.z += dt * p.mesh.userData.roll;
       }
     }
 
@@ -1166,7 +1188,9 @@ export class Match {
   }
 
   update(rawDt) {
+    if (this.freeze > 0) { this.freeze -= rawDt; return; }
     let dt = Math.min(rawDt, 0.05) * (this.opts.speed || 1);
+    if (this.slowmo > 0) { this.slowmo -= rawDt; dt *= 0.35; }
     // big steps (fast-forward in tests) are split so collisions stay stable
     while (dt > 1e-6) {
       const step = Math.min(dt, 1 / 30);
@@ -1280,6 +1304,7 @@ export class Match {
     const p = this.player;
     this.hud.setButtons(p);
     this.hud.respawn(p.alive ? 0 : p.respawn);
+    this.hud.el.classList.toggle('lowhp', p.alive && p.hp < p.maxHp * 0.3 && this.state === 'play');
     this.hudT -= dt;
     if (this.hudT <= 0 || force) {
       this.hudT = 0.15;

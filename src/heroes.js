@@ -31,7 +31,7 @@ const fan = (a, n, step) => { const base = Math.atan2(a.dx, a.dz), out = []; for
 
 export const HEROES = [
   {
-    id: 'kio', name: 'KIO', art: kioArt, model: kioModel, aspect: 0.638, size: 1.0, color: '#3fd18f',
+    id: 'kio', shot: 'bolt', pitch: 1.15, name: 'KIO', art: kioArt, model: kioModel, aspect: 0.638, size: 1.0, color: '#3fd18f',
     role: T('Assassine', 'Assassin'), tagline: T('Rein, klatschen, raus. Schneller als sein Schatten.', 'In, splat, out. Faster than his shadow.'),
     hp: 3300, speed: 6.9, reload: 1.0, ammo: 3, range: 8.5, projSpeed: 22, prefDist: 5.5, ultCharge: 4200,
     aim: { type: 'line', width: 0.8 }, stats: { atk: 4, def: 2, spd: 5, paint: 2 },
@@ -47,7 +47,7 @@ export const HEROES = [
     ult: { range: 6, aim: 'self', radius: 6, ai: { type: 'near', range: 5 }, use(m, h) { m.startSpin(h, 2.6); } },
   },
   {
-    id: 'pippa', name: 'PIPPA', art: pippaArt, model: pippaModel, aspect: 0.700, size: 0.96, color: '#9ccc3d',
+    id: 'pippa', shot: 'seed', pitch: 0.95, name: 'PIPPA', art: pippaArt, model: pippaModel, aspect: 0.700, size: 0.96, color: '#9ccc3d',
     role: T('Heilerin', 'Healer'), tagline: T('Wo sie hintritt, wächst Farbe – und das Team bleibt stehen.', 'Wherever she steps, colour grows – and the team stays up.'),
     hp: 3500, speed: 5.9, reload: 1.3, ammo: 3, range: 8, projSpeed: 14, prefDist: 5.5, ultCharge: 4000,
     aim: { type: 'cone', spread: 0.24 }, stats: { atk: 2, def: 3, spd: 3, paint: 4 },
@@ -63,7 +63,7 @@ export const HEROES = [
     ult: { range: 8, aim: 'area', radius: 5.5, ai: { type: 'area', range: 8 }, use(m, h, a) { m.addZone({ type: 'bloom', owner: h, x: h.x + a.dx * a.dist, z: h.z + a.dz * a.dist, r: 5.5, dur: 5, tick: 0.5, heal: 190, dmg: 90, paintN: 4 }); } },
   },
   {
-    id: 'prismo', name: 'PRISMO', art: prismoArt, model: prismoModel, size3d: 1.05, aspect: 0.765, size: 1.06, color: '#4fd6b0',
+    id: 'prismo', shot: 'shard', pitch: 1.3, name: 'PRISMO', art: prismoArt, model: prismoModel, size3d: 1.05, aspect: 0.765, size: 1.06, color: '#4fd6b0',
     role: T('Kämpfer', 'Fighter'), tagline: T('Springt mitten rein und steht danach noch.', 'Jumps right in and is still standing afterwards.'),
     hp: 4300, speed: 5.8, reload: 1.25, ammo: 3, range: 7, projSpeed: 20, prefDist: 4.2, ultCharge: 4400,
     aim: { type: 'cone', spread: 0.16 }, stats: { atk: 4, def: 4, spd: 3, paint: 3 },
@@ -88,7 +88,7 @@ export const HEROES = [
     },
   },
   {
-    id: 'funk', name: 'FUNK', art: funkArt, model: funkModel, size3d: 0.94, face: [220, -8], aspect: 0.730, size: 0.9, color: '#ffb21f',
+    id: 'funk', shot: 'bolt', pitch: 1.5, name: 'FUNK', art: funkArt, model: funkModel, size3d: 0.94, face: [220, -8], aspect: 0.730, size: 0.9, color: '#ffb21f',
     role: T('Tüftler', 'Tinkerer'), tagline: T('Klein, frech – und nie allein: sein Geschütz schießt mit.', 'Small, cheeky – and never alone: his turret shoots too.'),
     hp: 3200, speed: 6.2, reload: 0.58, ammo: 4, range: 9.5, projSpeed: 26, prefDist: 7, ultCharge: 4000,
     aim: { type: 'line', width: 0.6 }, stats: { atk: 4, def: 1, spd: 4, paint: 3 },
@@ -108,7 +108,7 @@ export const HEROES = [
     ult: { range: 12, aim: 'cone', spread: 0.34, ai: { type: 'skillshot', range: 11 }, use(m, h, a) { fan(a, 3, 0.24).forEach((d, i) => m.after(i * 0.08, () => m.beam(h, d.dx, d.dz, 12, 0.85, 520))); } },
   },
   {
-    id: 'sumsi', name: 'SUMSI', art: sumsiArt, model: sumsiModel, aspect: 0.723, size: 1.0, color: '#f2b22e',
+    id: 'sumsi', shot: 'honey', pitch: 0.75, name: 'SUMSI', art: sumsiArt, model: sumsiModel, aspect: 0.723, size: 1.0, color: '#f2b22e',
     role: T('Kontrolle', 'Controller'), tagline: T('Wer in ihrem Honig klebt, kommt nicht mehr weg.', 'Whoever sticks in her honey is not getting away.'),
     hp: 4600, speed: 5.5, reload: 1.4, ammo: 3, range: 6.2, projSpeed: 18, prefDist: 4, ultCharge: 4600,
     aim: { type: 'cone', spread: 0.3 }, stats: { atk: 3, def: 4, spd: 2, paint: 4 },
@@ -127,7 +127,7 @@ export const HEROES = [
     },
   },
   {
-    id: 'wuschel', name: 'WUSCHEL', art: wuschelArt, model: wuschelModel, aspect: 0.648, size: 0.96, color: '#b49ae6',
+    id: 'wuschel', shot: 'bubble', pitch: 0.85, name: 'WUSCHEL', art: wuschelArt, model: wuschelModel, aspect: 0.648, size: 0.96, color: '#b49ae6',
     role: T('Unterstützerin', 'Enchanter'), tagline: T('Macht ihr Team schneller und rettet es im letzten Moment.', 'Makes her team faster and saves it at the last moment.'),
     hp: 3500, speed: 6.1, reload: 1.15, ammo: 3, range: 9, projSpeed: 13, prefDist: 6, ultCharge: 4000,
     aim: { type: 'line', width: 1.3 }, stats: { atk: 2, def: 2, spd: 4, paint: 4 },
@@ -149,7 +149,7 @@ export const HEROES = [
     },
   },
   {
-    id: 'luma', name: 'LUMA', art: lumaArt, model: lumaModel, face: [190, -8], aspect: 0.689, size: 1.0, color: '#ff7ab8',
+    id: 'luma', shot: 'moon', pitch: 1.7, name: 'LUMA', art: lumaArt, model: lumaModel, face: [190, -8], aspect: 0.689, size: 1.0, color: '#ff7ab8',
     role: T('Scharfschützin', 'Sniper'), tagline: T('Je weiter weg, desto gefährlicher.', 'The farther away, the more dangerous.'),
     hp: 2700, speed: 5.9, reload: 1.55, ammo: 3, range: 11.5, projSpeed: 30, prefDist: 9, ultCharge: 4000,
     aim: { type: 'line', width: 0.6 }, stats: { atk: 5, def: 1, spd: 3, paint: 3 },
@@ -165,7 +165,7 @@ export const HEROES = [
     ult: { range: 11, aim: 'area', radius: 5, ai: { type: 'area', range: 11 }, use(m, h, a) { m.addZone({ type: 'rain', owner: h, x: h.x + a.dx * a.dist, z: h.z + a.dz * a.dist, r: 5, dur: 4.2, tick: 0.4, dmg: 200, slow: 0.75, paintN: 4 }); } },
   },
   {
-    id: 'klecks', name: 'KLECKS', art: klecksArt, model: klecksModel, size3d: 1.1, aspect: 0.802, size: 1.1, color: '#f0a92a',
+    id: 'klecks', shot: 'blob', pitch: 0.6, name: 'KLECKS', art: klecksArt, model: klecksModel, size3d: 1.1, aspect: 0.802, size: 1.1, color: '#f0a92a',
     role: T('Tank', 'Tank'), tagline: T('Steht vorne. Bleibt vorne.', 'Stands in front. Stays in front.'),
     hp: 5400, speed: 5.2, reload: 1.45, ammo: 3, range: 6.2, projSpeed: 19, prefDist: 3.6, ultCharge: 4800,
     aim: { type: 'cone', spread: 0.36 }, stats: { atk: 3, def: 5, spd: 2, paint: 4 },
@@ -181,7 +181,7 @@ export const HEROES = [
     ult: { range: 8.5, aim: 'cone', spread: 0.34, ai: { type: 'skillshot', range: 6.5 }, use(m, h, a) { m.spray(h, a.dx, a.dz, 2.6, 0.3, { speed: 20, range: 8.5, dmg: 150, paintR: 1.25, trailR: 0.8, size: 1.15 }); } },
   },
   {
-    id: 'manta', name: 'MANTA', art: mantaArt, model: mantaModel, aspect: 0.594, size: 1.0, color: '#2ee0d0',
+    id: 'manta', shot: 'feather', pitch: 1.4, name: 'MANTA', art: mantaArt, model: mantaModel, aspect: 0.594, size: 1.0, color: '#2ee0d0',
     role: T('Fliegerin', 'Flyer'), tagline: T('Wände? Fliegt sie einfach drüber.', 'Walls? She just flies over them.'),
     hp: 3300, speed: 6.5, reload: 1.1, ammo: 3, range: 9.5, projSpeed: 24, prefDist: 6.5, ultCharge: 4200,
     aim: { type: 'line', width: 0.7 }, stats: { atk: 3, def: 2, spd: 5, paint: 3 },
@@ -197,7 +197,7 @@ export const HEROES = [
     ult: { range: 12.5, aim: 'line', width: 5, ai: { type: 'skillshot', range: 10 }, use(m, h, a) { for (let i = 0; i < 4; i++) m.after(i * 0.14, () => m.lob(h, h.x + a.dx * (3.2 + i * 3.1), h.z + a.dz * (3.2 + i * 3.1), { time: 0.55, dmg: 600, radius: 2.8, paintR: 3.0, knock: 4, size: 0.5 })); } },
   },
   {
-    id: 'taps', name: 'TAPS', art: tapsArt, model: tapsModel, size3d: 1.22, face: [330, -44], aspect: 0.964, size: 1.22, color: '#f07a2a',
+    id: 'taps', shot: 'water', pitch: 0.5, name: 'TAPS', art: tapsArt, model: tapsModel, size3d: 1.22, face: [330, -44], aspect: 0.964, size: 1.22, color: '#f07a2a',
     role: T('Koloss', 'Juggernaut'), tagline: T('Langsam. Aber versuch mal, ihn aufzuhalten.', 'Slow. But try stopping him.'),
     hp: 6200, speed: 4.9, reload: 1.6, ammo: 3, range: 7, projSpeed: 16, prefDist: 3.8, ultCharge: 5000,
     aim: { type: 'line', width: 1.2 }, stats: { atk: 3, def: 5, spd: 1, paint: 5 },
@@ -213,7 +213,7 @@ export const HEROES = [
     ult: { range: 6.5, aim: 'self', radius: 6.5, ai: { type: 'near', range: 5 }, use(m, h) { m.burst(h, h.x, h.z, 6.5, 900, { paintR: 6.5, slow: 1.5, slowF: 0.12 }); h.kick = 2; } },
   },
   {
-    id: 'flitz', name: 'FLITZ', art: null, model: flitzModel, face: [210, -4], aspect: 0.667, size: 1.0, color: '#ff7043',
+    id: 'flitz', shot: 'wisp', pitch: 1.25, name: 'FLITZ', art: null, model: flitzModel, face: [210, -4], aspect: 0.667, size: 1.0, color: '#ff7043',
     role: T('Trickser', 'Trickster'), tagline: T('Seine Schüsse kommen um die Ecke.', 'His shots come around the corner.'),
     hp: 3100, speed: 6.6, reload: 1.05, ammo: 3, range: 8.5, projSpeed: 21, prefDist: 6, ultCharge: 4200,
     aim: { type: 'line', width: 0.7 }, stats: { atk: 3, def: 2, spd: 4, paint: 3 },

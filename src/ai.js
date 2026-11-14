@@ -7,7 +7,7 @@ export function initAI(h, laneZ) {
   h.ai = {
     think: Math.random() * 0.3, mode: 'push', target: null,
     goalX: h.x, goalZ: h.z, strafe: 1, strafeT: 0, strafeAmt: 0,
-    fireT: 0.5, paintT: 1 + Math.random(), laneZ, skill: 0.75 + Math.random() * 0.35,
+    fireT: 0.5, paintT: 1 + Math.random(), laneZ, skill: (0.75 + Math.random() * 0.35) * (h.team === 0 ? 1 : 0.82),
   };
 }
 

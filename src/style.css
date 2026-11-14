@@ -156,6 +156,19 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .tl-card span { font-size: clamp(9px, calc(2.6 * var(--vh)), 13px); color: #e6e2ff; text-align: center; line-height: 1.15; }
 .tl-card i { position: absolute; left: 6px; top: 4px; font-style: normal; font-size: 10px; opacity: 0.55; }
 .tl-card:active { transform: translateY(3px); }
+.pulse { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+.pulse.hurt { background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 60, 80, 0.55) 100%); animation: pulseOut 0.35s ease-out; }
+.pulse.dead { background: radial-gradient(ellipse at center, rgba(255, 60, 80, 0.2) 20%, rgba(255, 60, 80, 0.7) 100%); animation: pulseOut 0.9s ease-out; }
+.pulse.kill { background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.5), rgba(255, 227, 107, 0.25) 60%, transparent); animation: pulseOut 0.3s ease-out; }
+.pulse.ult { background: radial-gradient(ellipse at center, transparent 40%, rgba(255, 227, 107, 0.5) 100%); animation: pulseOut 0.5s ease-out; }
+@keyframes pulseOut { from { opacity: 1; } to { opacity: 0; } }
+.hud.lowhp::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, rgba(255, 40, 70, 0.4) 100%); animation: lowhp 0.8s ease-in-out infinite; }
+@keyframes lowhp { 50% { opacity: 0.35; } }
+.floater.crit { color: #ffb52e; font-size: clamp(22px, calc(7 * var(--vh)), 38px); }
+.floater.ko { color: #fff; font-size: clamp(24px, calc(8 * var(--vh)), 44px); -webkit-text-stroke: 7px var(--pink); }
+.floater.ult-a, .floater.ult-b { font-size: clamp(16px, calc(5 * var(--vh)), 28px); animation-duration: 1.3s; }
+.floater.ult-a { color: var(--gold); }
+.floater.ult-b { color: #ff8fa3; }
 .respawn { position: absolute; left: 0; right: 0; top: 46%; text-align: center; font-size: clamp(20px, calc(7 * var(--vh)), 44px); font-weight: 700; paint-order: stroke fill; -webkit-text-stroke: 7px var(--ink); display: none; }
 .respawn.show { display: block; }
 .tips { position: absolute; left: 50%; bottom: calc(5 * var(--vh)); transform: translateX(-50%); width: min(calc(48 * var(--vw)), 560px); display: none; flex-direction: column; gap: 5px; font-size: clamp(10px, calc(2.9 * var(--vh)), 16px); text-align: center; }
