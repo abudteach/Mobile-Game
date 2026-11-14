@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { clone as cloneRig } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { mergeGeometries, deinterleaveGeometry } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { TEAM_COLORS } from './config.js';
 import { addRim, glow } from './gfx.js';
 
@@ -114,7 +118,7 @@ const FIGURE_FRAG = `
 // Default picture proportions; individual heroes override them with `def.rig`.
 const RIG = [0.44, 0.74, 0.27];
 
-export function buildHero(def, team = 0) {
+function buildFigure(def, team = 0) {
   const flash = { value: 0 };
   const root = new THREE.Group();
   const tilt = grp(root);
@@ -145,10 +149,8 @@ export function buildHero(def, team = 0) {
   return { root, tilt, figure, drone, flash, u: uniforms, H, W, team, tiltNow: TILT, flip: 1, droneAng: team === 0 ? Math.PI / 2 : -Math.PI / 2, topY: H, topZ: 0 };
 }
 
-export const prepHero = (m) => m;
-
 // s: { moving 0..1, kick 0..1, cheer, dir (aim angle), vx (sideways speed -1..1), spin, clear (free space behind the figure) }
-export function animateHero(m, t, dt, s) {
+function animateFigure(m, t, dt, s) {
   const u = m.u;
   u.uTime.value = t;
   u.uMove.value = s.moving || 0;
@@ -197,6 +199,164 @@ export function buildMinion(team) {
   }
   curFlash = undefined;
   return { root, rig, flash };
+}
+
+// ---------- 3D hero models (GLB with skeleton and animation clips) ----------
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+const assets = new Map(); // hero id -> { scene, clips }
+const MODEL_SCALE = 2.55;   // the source models are about one unit tall
+const LOWER_BODY = /^(Root|Hips|Thigh|Shin|Foot)/;
+const LOCO = ['Idle', 'RunForward', 'WalkBackward', 'StrafeLeft', 'StrafeRight'];
+
+// Outline for skinned meshes: back faces pushed out along the normal, after skinning data is read.
+const RIG_OUTLINE = new THREE.MeshBasicMaterial({ color: 0x17132f, side: THREE.BackSide });
+RIG_OUTLINE.onBeforeCompile = (sh) => {
+  sh.vertexShader = sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  transformed += normalize(objectNormal) * 0.008;');
+};
+
+async function loadModel(def) {
+  if (assets.has(def.id)) return;
+  let gltf;
+  if (def.model.startsWith('data:')) {
+    // single-file build: decode the embedded file ourselves instead of fetching a data: URL
+    const bin = atob(def.model.slice(def.model.indexOf(',') + 1));
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    gltf = await loader.parseAsync(buf.buffer, '');
+  } else gltf = await loader.loadAsync(def.model);
+  // one draw call per mesh: merge the per-colour pieces the exporter produced
+  const groups = new Map();
+  gltf.scene.traverse((o) => { if (o.isSkinnedMesh) { if (!groups.has(o.parent)) groups.set(o.parent, []); groups.get(o.parent).push(o); } });
+  for (const [parent, list] of groups) {
+    if (list.length < 2) continue;
+    const geos = list.map((m) => (m.geometry.attributes.position.isInterleavedBufferAttribute ? (deinterleaveGeometry(m.geometry), m.geometry) : m.geometry));
+    const geo = mergeGeometries(geos, false);
+    if (!geo) continue;
+    const merged = new THREE.SkinnedMesh(geo, list[0].material);
+    merged.name = parent.name;
+    merged.bind(list[0].skeleton, list[0].bindMatrix);
+    for (const m of list) parent.remove(m);
+    parent.add(merged);
+  }
+  // upper-body versions of the action clips, so heroes can shoot while their legs keep running
+  const clips = {};
+  for (const c of gltf.animations) {
+    clips[c.name] = c;
+    if (c.name === 'Attack' || c.name === 'Special' || c.name === 'HitReact') clips[`${c.name}Upper`] = new THREE.AnimationClip(`${c.name}Upper`, c.duration, c.tracks.filter((tr) => !LOWER_BODY.test(tr.name)));
+  }
+  assets.set(def.id, { scene: gltf.scene, clips });
+}
+
+export const preloadHeroModels = (defs) => Promise.all(defs.filter((d) => d.model).map(loadModel));
+export const hasModel = (def) => assets.has(def.id);
+
+function buildRigged(def, team = 0) {
+  const asset = assets.get(def.id);
+  const flash = { value: 0 };
+  const root = new THREE.Group();
+  const inner = grp(root);
+  const rig = cloneRig(asset.scene);
+  const scale = MODEL_SCALE * (def.size3d || 1);
+  inner.scale.setScalar(scale);
+  inner.add(rig);
+  const bodyMat = addRim(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0 }), flash, 1.0, 0.3);
+  const teamCol = new THREE.Color(TEAM_COLORS[team]);
+  const weaponMat = addRim(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.4, metalness: 0, color: teamCol.clone().lerp(new THREE.Color(0xffffff), 0.45), emissive: teamCol, emissiveIntensity: 0.5 }), flash, 1.0, 0.2);
+  const meshes = [];
+  rig.traverse((o) => { if (o.isSkinnedMesh) meshes.push(o); });
+  for (const o of meshes) {
+    o.material = /weapon/i.test(o.name) || /weapon/i.test(o.parent.name) ? weaponMat : bodyMat;
+    o.castShadow = true;
+    o.frustumCulled = false;
+    const hull = new THREE.SkinnedMesh(o.geometry, RIG_OUTLINE);
+    hull.bind(o.skeleton, o.bindMatrix);
+    hull.frustumCulled = false;
+    o.parent.add(hull);
+  }
+  const mixer = new THREE.AnimationMixer(rig);
+  const act = {};
+  for (const name in asset.clips) {
+    const a = mixer.clipAction(asset.clips[name]);
+    if (LOCO.includes(name)) { a.play(); a.setEffectiveWeight(name === 'Idle' ? 1 : 0); }
+    else { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = name === 'KO'; }
+    act[name] = a;
+  }
+  const m = {
+    is3d: true, root, inner, rig, flash, mixer, act, team, yaw: team === 0 ? Math.PI / 2 : -Math.PI / 2, w: { Idle: 1, RunForward: 0, WalkBackward: 0, StrafeLeft: 0, StrafeRight: 0 },
+    topY: scale * 1.02, topZ: 0, hitCd: 0, down: false,
+    // one-shot animations: Attack, Special, HitReact (upper body), KO, Respawn (whole body)
+    trigger(name) {
+      if (name === 'HitReact') { if (m.hitCd > 0 || m.down) return; m.hitCd = 0.6; }
+      const a = act[`${name}Upper`] || act[name];
+      if (!a) return;
+      if (name === 'KO') { m.down = true; mixer.stopAllAction(); a.reset().setEffectiveWeight(1).play(); a.timeScale = 1.5; return; }
+      if (name === 'Respawn') { m.down = false; mixer.stopAllAction(); for (const n of LOCO) act[n].reset().play().setEffectiveWeight(m.w[n]); }
+      if (m.down) return;
+      a.reset().setEffectiveWeight(name === 'HitReact' ? 1.2 : 3.5).play();
+      a.timeScale = name === 'Attack' ? 2.4 : name === 'Special' ? 1.7 : 1.4;
+      a.fadeOut(a.getClip().duration / a.timeScale);
+    },
+  };
+  inner.rotation.y = m.yaw;
+  return m;
+}
+
+// s: { moving 0..1, moveAng, dir, spin, dash, cheer }
+function animateRigged(m, t, dt, s) {
+  m.flash.value = Math.max(0, m.flash.value - dt * 7);
+  m.hitCd -= dt;
+  if (s.dir !== undefined && !m.down) {
+    let d = s.dir - m.yaw;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    m.yaw += d * Math.min(1, dt * 14);
+  }
+  m.inner.rotation.y = m.yaw + (s.spin ? t * 22 : 0);
+  m.inner.rotation.x += ((s.dash ? 0.45 : 0) - m.inner.rotation.x) * Math.min(1, dt * 12);
+  m.inner.position.y = s.cheer ? Math.abs(Math.sin(t * 7)) * 0.5 : 0;
+  if (!m.down) {
+    // pick the leg animation from where the hero moves relative to where they look
+    let want = 'Idle';
+    if ((s.moving || 0) > 0.3) {
+      const rel = Math.atan2(Math.sin((s.moveAng ?? m.yaw) - m.yaw), Math.cos((s.moveAng ?? m.yaw) - m.yaw));
+      want = Math.abs(rel) < 0.95 ? 'RunForward' : Math.abs(rel) > 2.2 ? 'WalkBackward' : rel > 0 ? 'StrafeLeft' : 'StrafeRight';
+    }
+    const k = Math.min(1, dt * 11);
+    for (const n of LOCO) { m.w[n] += ((n === want ? 1 : 0) - m.w[n]) * k; m.act[n].setEffectiveWeight(m.w[n]); }
+    m.act.RunForward.timeScale = 1.35;
+  }
+  m.mixer.update(dt);
+}
+
+// A hero in the match: the rigged 3D model when it is loaded and wanted, otherwise the artwork figure.
+export function buildHero(def, team = 0, mode = '3d') {
+  return mode === '3d' && assets.has(def.id) ? buildRigged(def, team) : buildFigure(def, team);
+}
+
+export function animateHero(m, t, dt, s) {
+  if (m.is3d) animateRigged(m, t, dt, s); else animateFigure(m, t, dt, s);
+}
+
+// Portrait of a 3D model as a transparent PNG (used where a hero has no artwork yet).
+export function renderPortrait(renderer, def, w = 440, h = 660) {
+  const m = buildRigged(def, 0);
+  m.yaw = 0.25; m.inner.rotation.y = 0.25;
+  m.mixer.update(0.4);
+  const scene = new THREE.Scene();
+  scene.add(new THREE.HemisphereLight(0xe6ecff, 0x8a6aa8, 1.5));
+  const sun = new THREE.DirectionalLight(0xfff4e0, 2.2);
+  sun.position.set(-3, 6, 6);
+  scene.add(sun, m.root);
+  const H = m.topY;
+  const cam = new THREE.PerspectiveCamera(26, w / h, 0.1, 50);
+  cam.position.set(0, H * 0.56, H * 2.75);
+  cam.lookAt(0, H * 0.5, 0);
+  const ratio = renderer.getPixelRatio(), size = renderer.getSize(new THREE.Vector2()), tm = renderer.toneMapping;
+  const clearColor = renderer.getClearColor(new THREE.Color()), clearAlpha = renderer.getClearAlpha();
+  renderer.setPixelRatio(1); renderer.setSize(w, h, false); renderer.setClearColor(0x17132f, 0); renderer.toneMapping = THREE.NoToneMapping;
+  renderer.render(scene, cam);
+  const url = renderer.domElement.toDataURL('image/png');
+  renderer.setPixelRatio(ratio); renderer.setSize(size.x, size.y, false); renderer.setClearColor(clearColor, clearAlpha); renderer.toneMapping = tm;
+  return url;
 }
 
 // ---------- gadgets ----------

@@ -19,21 +19,22 @@ das Team mit mehr Farbe auf dem Feld.
 
 ## Helden
 
-Zehn Helden nach eigenen Charakter-Designs. Jeder hat eine klare Rolle, eine passive Stärke und drei Fähigkeiten,
+Elf Helden nach eigenen Charakter-Designs. Jeder hat eine klare Rolle, eine passive Stärke und drei Fähigkeiten,
 die kein anderer hat (`src/heroes.js`).
 
 | Held | Rolle | Passiv | Angriff | Fähigkeit | Ulti |
 | --- | --- | --- | --- | --- | --- |
-| **Jaro** | Assassine | Auf eigener Farbe extra schnell, K.O. setzt Sprint zurück | Doppel-Spray | Schattensprint | Farb-Tornado |
+| **Kio** | Assassine | Auf eigener Farbe extra schnell, K.O. setzt Sprint zurück | Doppel-Spray | Schattensprint | Farb-Tornado |
 | **Pippa** | Heilerin | Heilt Verbündete in ihrer Nähe | Samen-Salve | Heil-Pfütze | Blütenmeer |
-| **Zyro** | Kämpfer | Schild wächst nach, wenn er nicht getroffen wird | Splitter-Fächer | Kristallsturz | Kristallhagel |
-| **Byte** | Tüftler | Jeder 4. Schuss ist aufgeladen | Schnellfeuer | Geschützturm | Laser-Gitter |
-| **Melli** | Kontrolle | Treffer verlangsamen | Honig-Schrot | Klebefalle | Waben-Bombe |
-| **Nimbi** | Unterstützerin | Rettet Verbündete mit einem Schild | Wolkenball (heilt Freunde) | Rückenwind | Wolkenbruch |
+| **Prismo** | Kämpfer | Schild wächst nach, wenn er nicht getroffen wird | Splitter-Fächer | Kristallsturz | Kristallhagel |
+| **Funk** | Tüftler | Jeder 4. Schuss ist aufgeladen | Schnellfeuer | Geschützturm | Laser-Gitter |
+| **Sumsi** | Kontrolle | Treffer verlangsamen | Honig-Schrot | Klebefalle | Waben-Bombe |
+| **Wuschel** | Unterstützerin | Rettet Verbündete mit einem Schild | Wolkenball (heilt Freunde) | Rückenwind | Wolkenbruch |
 | **Luma** | Scharfschützin | Schüsse werden mit der Distanz stärker | Mond-Tropfen | Mondstrahl | Farbregen |
-| **Bruno** | Tank | Unter halbem Leben 30 % weniger Schaden | Klecks-Kanone | Bodenstampfer | Hochdruck |
-| **Skye** | Fliegerin | Nach dem Sturzflug kurz viel schneller | Feder-Salve | Sturzflug (über Deckung) | Luftschlag |
-| **Grom** | Koloss | Kann nicht verlangsamt oder weggestoßen werden | Wasserkugel | Wasserschild | Erdbeben |
+| **Klecks** | Tank | Unter halbem Leben 30 % weniger Schaden | Klecks-Kanone | Bodenstampfer | Hochdruck |
+| **Manta** | Fliegerin | Nach dem Sturzflug kurz viel schneller | Feder-Salve | Sturzflug (über Deckung) | Luftschlag |
+| **Taps** | Koloss | Kann nicht verlangsamt oder weggestoßen werden | Wasserkugel | Wasserschild | Erdbeben |
+| **Flitz** | Trickser | Schüsse prallen von Wänden ab | Querschläger | Hakenschlag | Fuchsfeuer |
 
 ## Strategie
 
@@ -43,18 +44,27 @@ die kein anderer hat (`src/heroes.js`).
 - **Talente:** Auf Level 3, 5 und 7 wählt jeder Held eines von drei Talenten (Schaden, Leben, Tempo, Nachladen,
   Farbradius, Cooldown, Lebensraub, Ulti-Ladung). So entsteht in jedem Match ein eigener Build.
 - **Farb-Schild:** Türme und Kern nehmen nur dann vollen Schaden, wenn der Boden um sie herum in deiner Farbe ist.
-- **Turm-Regel:** Türme schießen zuerst auf Blobs. Ohne Blobs (oder Bytes Geschütz) als Deckung trifft es dich.
+- **Turm-Regel:** Türme schießen zuerst auf Blobs. Ohne Blobs (oder Funks Geschütz) als Deckung trifft es dich.
 
 ## Figuren im Match
 
-Im Match ist jeder Held sein eigenes Artwork (`src/assets/heroes/`): eine ausgeschnittene Figur, die immer zur
-Kamera schaut und per Shader animiert wird (Laufen, Armschwung, Atmen, Neigen, Treffer-Aufleuchten). Eine kleine
-Farb-Drohne in Teamfarbe zeigt, wohin der Held zielt. Dadurch sehen die Figuren im Spiel genauso aus wie in der
-Auswahl – es sind aber keine echten 3D-Modelle: man sieht sie immer von vorn.
+Im Match laufen geriggte 3D-Modelle (`src/assets/models/*.glb`) mit Skelett und elf Animationen (Stehen, Laufen,
+Rückwärts, Seitwärts, Angriff, Spezial, Treffer, K.O., Respawn). Die Beine folgen der Laufrichtung, der Oberkörper
+spielt Angriff und Spezial darüber. Die Waffe leuchtet in der Teamfarbe.
 
-Für echte, drehbare 3D-Modelle braucht es pro Held eine `.glb`-Datei (Modell + Skelett + Animationen), z. B. aus
-einem Bild-zu-3D-Dienst (Meshy, Tripo, Rodin) mit Auto-Rigging oder von einem 3D-Artist. Die Dateien kämen nach
-`public/models/<id>.glb` und würden über den `GLTFLoader` von Three.js statt der Artwork-Figuren geladen.
+Neue oder überarbeitete Modelle einspielen:
+
+```bash
+node tools/prepare-models.mjs <Ordner mit den .glb-Dateien>
+```
+
+Das Skript backt die Materialfarben in Vertex-Farben, vereinfacht und komprimiert die Modelle (ca. 1,7 MB → 0,3 MB
+pro Figur) und legt sie nach `src/assets/models/`. Erwartet werden die Clip-Namen oben und die Dateinamen aus der
+Tabelle im Skript.
+
+Im Menü lässt sich auf „Artwork-Figuren" umschalten: dann laufen statt der 3D-Modelle die ausgeschnittenen
+Charakterbilder (`src/assets/heroes/`) als animierte, immer zur Kamera gedrehte Figuren. Flitz hat noch kein
+Artwork; sein Bild im Menü wird aus dem 3D-Modell gerendert.
 
 ## Starten
 
@@ -80,7 +90,7 @@ src/
   main.js     App-Start, Render-Loop, Wechsel Menü <-> Match, automatische Qualitätsanpassung
   game.js     Match-Simulation: Helden, Blobs, Türme, Kern, Projektile, Zonen, Kamera
   heroes.js   Helden-Daten und ihre Angriffe/Fähigkeiten (hier neue Helden hinzufügen)
-  models.js   Helden-Figuren aus dem Artwork (Shader-Animation), Blobs, Türme, Kern, Geschütz, Farbquelle
+  models.js   Helden (3D-Modelle mit Animationen, alternativ Artwork-Figuren), Blobs, Türme, Kern, Geschütz, Farbquelle
   gfx.js      Render-Pipeline (Bloom, Tone-Mapping), Glow- und Rim-Light-Helfer
   view.js     Querformat-Bühne (dreht das Spiel, wenn das Handy hochkant gehalten wird)
   ai.js       Bot-KI (Rückzug, Kampf, Farmen, Pushen, Malen)

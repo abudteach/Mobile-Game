@@ -56,6 +56,9 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .sound { position: relative; flex: none; width: clamp(30px, calc(7.5 * var(--vh)), 42px); height: clamp(30px, calc(7.5 * var(--vh)), 42px); border-radius: 50%; background: var(--panel); border: 3px solid var(--ink); }
 .sound::before { content: ''; position: absolute; inset: 26%; background: #fff; clip-path: polygon(0 32%, 34% 32%, 72% 0, 72% 100%, 34% 68%, 0 68%); }
 .sound.off::after { content: ''; position: absolute; left: 14%; right: 14%; top: 46%; height: 10%; background: #ff5d6c; transform: rotate(-45deg); border-radius: 4px; }
+.figbtn { background: var(--panel); border: 3px solid var(--ink); border-radius: 999px; padding: 0.3em 0.9em; font-size: clamp(10px, calc(2.7 * var(--vh)), 15px); color: var(--gold); font-weight: 700; }
+.loading { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: var(--bg); }
+.loading p { color: var(--muted); font-size: 16px; margin: 0; }
 .rot-hint { display: none; font-size: clamp(10px, calc(2.8 * var(--vh)), 15px); background: var(--gold); color: var(--ink); border-radius: 999px; padding: 0.2em 0.9em; }
 .rot .rot-hint { display: block; }
 

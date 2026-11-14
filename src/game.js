@@ -226,7 +226,7 @@ export class Match {
           kills: 0, deaths: 0, painted: 0, dmgDone: 0, streak: 0, streakT: 0,
           cmd: { mx: 0, mz: 0 }, animT: Math.random() * 10,
         };
-        h.model = buildHero(def, team);
+        h.model = buildHero(def, team, this.opts.figures);
         h.model.root.position.set(h.x, 0, h.z);
         this.scene.add(h.model.root);
         // team ring on the ground
@@ -343,9 +343,38 @@ export class Match {
     this.projectiles.push({
       owner: h, team: h.team, x: px, z: pz, dx: o.dx, dz: o.dz, speed: o.speed, range: o.range, dist: 0,
       dmg: this.dmgOf(h, o.dmg), dmgMinion: o.dmgMinion, hitR: o.hitR || 0.3, paintR: o.paintR, trailR: o.trailR || 0, trail: 0.3,
-      slow: o.slow || null, ramp: o.ramp || 0, healAllies: o.healAllies || 0, healed: o.healAllies ? new Set([h]) : null,
+      bounce: o.bounce || 0, slow: o.slow || null, ramp: o.ramp || 0, healAllies: o.healAllies || 0, healed: o.healAllies ? new Set([h]) : null,
       pierce: !!o.pierce, knock: o.knock || 0, hit: o.hitSet || (o.pierce ? new Set() : null), homing: o.homing || null, mesh,
     });
+  }
+
+  // Bounce a projectile off the arena wall or a cover block. Returns true if it bounced.
+  ricochet(p, step) {
+    const px = p.x - p.dx * step, pz = p.z - p.dz * step;
+    let flipX = Math.abs(p.x) > HALF_W, flipZ = Math.abs(p.z) > HALF_H;
+    if (!flipX && !flipZ) {
+      const b = BOXES.find((q) => p.x > q.x0 && p.x < q.x1 && p.z > q.z0 && p.z < q.z1);
+      if (!b) return false;
+      if (px <= b.x0 || px >= b.x1) flipX = true; else flipZ = true;
+    }
+    if (flipX) p.dx = -p.dx;
+    if (flipZ) p.dz = -p.dz;
+    p.x = px; p.z = pz;
+    p.bounce--;
+    p.mesh.rotation.y = Math.atan2(p.dx, p.dz);
+    this.paintBy(p.owner, p.x, p.z, 0.8, p.team);
+    this.fx.flash(p.x, 0.8, p.z, TEAM_COLORS[p.team], 1.4);
+    return true;
+  }
+
+  // Homing wisps that spread over the nearest enemies (heroes first).
+  wisps(h, n, o) {
+    const list = this.targets[1 - h.team].filter((u) => (u.kind === 'hero' || u.kind === 'minion') && dist(h, u) < o.range)
+      .sort((a, b) => (a.kind === 'hero' ? 0 : 20) + dist(h, a) - ((b.kind === 'hero' ? 0 : 20) + dist(h, b)));
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2;
+      this.after(i * 0.07, () => this.shoot(h, { ...o, dx: Math.sin(ang), dz: Math.cos(ang), range: o.range + 4, homing: list.length ? list[i % list.length] : null }));
+    }
   }
 
   // additive glow sprite that follows a projectile
@@ -485,6 +514,7 @@ export class Match {
     h.aimHold = 0.4;
     h.kick = 1;
     h.def.attack(this, h, aim);
+    h.model.trigger?.('Attack');
     if (h.isPlayer) audio.shoot(1); else if (this.near(h.x, h.z, 16)) audio.shoot(0.35);
     return true;
   }
@@ -495,6 +525,7 @@ export class Match {
     if (h.def.ability.aim !== 'self') { h.dir = Math.atan2(aim.dx, aim.dz); h.aimHold = 0.4; }
     h.kick = 1;
     h.def.ability.use(this, h, aim);
+    h.model.trigger?.('Special');
     if (this.near(h.x, h.z, 16)) audio.ability();
     return true;
   }
@@ -507,6 +538,7 @@ export class Match {
     this.fx.ring(h.x, h.z, 3, 0xffffff, 0.4);
     this.fx.splash(h.x, 1.2, h.z, 0xffffff, 14, 6);
     h.def.ult.use(this, h, aim);
+    h.model.trigger?.('Special');
     if (this.near(h.x, h.z, 20)) audio.ult();
     if (h.isPlayer) this.fx.addShake(0.35);
     return true;
@@ -635,6 +667,7 @@ export class Match {
     u.sinceHit = 0;
     u.flash = 0.14;
     if (u.model && u.model.flash) u.model.flash.value = 1;
+    if (u.kind === 'hero') u.model.trigger?.('HitReact');
     if (owner) {
       owner.dmgDone += amount;
       this.addUlt(owner, amount / owner.def.ultCharge);
@@ -714,7 +747,8 @@ export class Match {
       u.respawn = 4 + u.level * 0.5;
       u.dash = null; u.spin = null; u.spray = null; u.kx = u.kz = 0; u.barrier = 0; u.hasteT = 0;
       for (const h of this.heroes) if (h.team === enemy && h.alive && h.def.passive.resetOnKill && (h === killer || dist(h, u) < 10)) h.cd = 0;
-      u.model.root.visible = false; u.ui.visible = false; u.ring.visible = false; u.bubble.visible = false;
+      if (u.model.is3d) { u.model.trigger('KO'); u.koT = 0.9; } else u.model.root.visible = false; // 3D models fall over first
+      u.ui.visible = false; u.ring.visible = false; u.bubble.visible = false;
       this.kills[enemy]++;
       this.paintBy(killer, u.x, u.z, 2.9, enemy);
       this.fx.splash(u.x, 1, u.z, col, 36, 9);
@@ -772,6 +806,8 @@ export class Match {
     h.ammo = h.def.ammo;
     h.sinceHit = 9;
     h.model.root.visible = true; h.ui.visible = true; h.ring.visible = true;
+    h.model.root.position.set(h.x, 0, h.z);
+    h.model.trigger?.('Respawn');
     h.ai.mode = 'push';
     this.fx.ring(h.x, h.z, 2.5, TEAM_COLORS[h.team], 0.5);
   }
@@ -781,6 +817,7 @@ export class Match {
     const m = h.model;
     if (!h.alive) {
       h.respawn -= dt;
+      if (h.koT > 0) { h.koT -= dt; h.animT += dt; animateHero(m, h.animT, dt, { moving: 0 }); if (h.koT <= 0) m.root.visible = false; }
       if (h.respawn <= 0) this.respawnHero(h);
       if (h.isPlayer) { this.input.poll(); this.aimG.visible = false; }
       return;
@@ -874,7 +911,7 @@ export class Match {
 
     h.kick = Math.max(0, h.kick - dt * 5);
     h.animT += dt * (onOwn ? 1.15 : 1);
-    animateHero(m, h.animT, dt, { moving: h.moving, kick: Math.min(1, h.kick), dir: h.dir, vx: h.cmd.mx, spin: !!h.spin, clear: this.clearBehind(h), cheer: this.state === 'ended' && this.result && this.result.winner === h.team });
+    animateHero(m, h.animT, dt, { moving: h.moving, kick: Math.min(1, h.kick), dir: h.dir, vx: h.cmd.mx, moveAng: Math.atan2(h.cmd.mx, h.cmd.mz), dash: !!h.dash, spin: !!h.spin, clear: this.clearBehind(h), cheer: this.state === 'ended' && this.result && this.result.winner === h.team });
     m.root.position.set(h.x, h.dash ? (h.dash.o.fly ? 1.7 : 0.25) : 0, h.z);
     if (haste && Math.random() < dt * 14) this.fx.splash(h.x, 0.3, h.z, 0xffffff, 1, 2);
     h.ring.position.set(h.x, 0.06, h.z);
@@ -1032,7 +1069,8 @@ export class Match {
           this.fx.ring(f.x, f.z, 1.6, 0x9dffc0, 0.35);
         }
       }
-      if (Math.abs(p.x) > HALF_W || Math.abs(p.z) > HALF_H || (!p.homing && pointInBox(p.x, p.z, 0.05))) dead = true;
+      if (p.bounce > 0 && !p.homing && this.ricochet(p, step)) { /* bounced */ }
+      else if (Math.abs(p.x) > HALF_W || Math.abs(p.z) > HALF_H || (!p.homing && pointInBox(p.x, p.z, 0.05))) dead = true;
       else {
         for (const u of this.targets[1 - p.team]) {
           if (p.hit && p.hit.has(u)) continue;

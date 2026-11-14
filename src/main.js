@@ -7,6 +7,9 @@ import { MenuScene, MenuUI, ResultUI, addTrophies } from './menu.js';
 import { audio } from './audio.js';
 import { Gfx } from './gfx.js';
 import { view, updateView } from './view.js';
+import { HEROES } from './heroes.js';
+import { preloadHeroModels, renderPortrait, hasModel } from './models.js';
+import { t } from './i18n.js';
 
 const params = new URLSearchParams(location.search);
 
@@ -25,7 +28,7 @@ class App {
     this.menuScene = new MenuScene();
     this.menuUI = null;
     this.resultUI = null;
-    this.heroId = 'jaro';
+    this.heroId = 'kio';
     this.last = performance.now();
     this.quality = { ratio: Math.min(window.devicePixelRatio || 1, 2), slow: 0, shadows: true };
 
@@ -36,10 +39,31 @@ class App {
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     this.resize();
 
-    if (params.get('models')) this.showModels();
-    else if (params.get('start')) this.startMatch(params.get('hero') || 'jaro');
-    else this.showMenu();
     this.renderer.setAnimationLoop(() => this.frame());
+    this.boot();
+  }
+
+  // Load the 3D hero models, then open the menu (or whatever the URL asks for).
+  async boot() {
+    const loading = document.createElement('div');
+    loading.className = 'loading';
+    loading.innerHTML = `<div class="logo"><span class="l1">DRIP</span><span class="l2">CLASH</span></div><p>${t('loading')}</p>`;
+    this.hudRoot.appendChild(loading);
+    try { await preloadHeroModels(HEROES); } catch (err) { console.warn('3D models could not be loaded, using artwork figures', err); }
+    // heroes without artwork get a portrait rendered from their 3D model
+    for (const h of HEROES) if (!h.art && hasModel(h)) h.art = renderPortrait(this.renderer, h);
+    this.resize();
+    loading.remove();
+    if (params.get('models')) this.showModels();
+    else if (params.get('start')) this.startMatch(params.get('hero') || 'kio');
+    else this.showMenu();
+  }
+
+  // 3D models or artwork figures in the match (menu switch, or ?fig=art / ?fig=3d)
+  get figures() {
+    const forced = params.get('fig');
+    if (forced) return forced;
+    try { return localStorage.getItem('dc_fig') || '3d'; } catch { return '3d'; }
   }
 
   resize() {
@@ -51,17 +75,19 @@ class App {
 
   // Debug view (?models=1): all hero models side by side.
   async showModels() {
-    const [{ buildHero, animateHero }, { HEROES }] = await Promise.all([import('./models.js'), import('./heroes.js')]);
+    const { buildHero, animateHero } = await import('./models.js');
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x2a2650);
     scene.add(new THREE.HemisphereLight(0xcfd8ff, 0x6a3f8a, 1.15));
-    const sun = new THREE.DirectionalLight(0xffe9cc, 2.3); sun.position.set(-6, 14, 8); scene.add(sun);
+    const sun = new THREE.DirectionalLight(0xffe9cc, 2.3); sun.position.set(-10, 26, 9); scene.add(sun);
+    const rim = new THREE.DirectionalLight(0x7fb0ff, 0.9); rim.position.set(8, 10, -14); scene.add(rim);
     const cam = new THREE.PerspectiveCamera(30, view.w / view.h, 0.1, 100);
     const top = params.get('models') === 'top';
-    cam.position.set(0, top ? 17.6 : 7, top ? 12 : 22); cam.lookAt(0, top ? 0 : 1.2, top ? -0.6 : 0);
-    const list = HEROES.map((h, i) => { const m = buildHero(h, i % 2); m.root.position.set((i % 5 - 2) * 3.6 + (i < 5 ? 0.9 : -0.9), 0, i < 5 ? -3 : 2.4); scene.add(m.root); return m; });
+    cam.position.set(0, top ? 17.6 : 9, top ? 12 : 27); cam.lookAt(0, top ? 0 : 0.6, top ? -0.6 : 0);
+    const list = HEROES.map((h, i) => { const m = buildHero(h, i % 2, this.figures); m.root.position.set((i % 6 - 2.5) * 3.6 + (i < 6 ? 0 : 1.8), 0, i < 6 ? -3.4 : 3.2); scene.add(m.root); return m; });
+    const clip = params.get('clip');
     let t = 0;
-    this.menuScene = { resize() {}, update: (dt) => { t += dt; for (const m of list) animateHero(m, t, dt, { moving: params.get('walk') ? 1 : 0, kick: 0, dir: params.get('walk') ? t * 0.8 : 0.9, vx: Math.sin(t * 0.8) }); }, render: (gfx) => gfx.render(scene, cam) };
+    this.menuScene = { resize() {}, update: (dt) => { t += dt; for (const m of list) { if (clip && Math.floor(t / 1.2) !== Math.floor((t - dt) / 1.2)) m.trigger?.(clip); animateHero(m, t, dt, { moving: params.get('walk') ? 1 : 0, kick: 0, dir: params.get('walk') ? 0.6 : 0.5, moveAng: 0.6, vx: Math.sin(t * 0.8) }); } }, render: (gfx) => gfx.render(scene, cam) };
   }
 
   showMenu() {
@@ -75,7 +101,7 @@ class App {
     document.body.classList.remove('in-menu');
     this.heroId = heroId;
     this.renderer.shadowMap.enabled = this.quality.shadows;
-    this.match = new Match(this, heroId, { autoplay: params.get('autoplay') === '1', speed: parseFloat(params.get('speed')) || 1, comp: params.get('comp') });
+    this.match = new Match(this, heroId, { autoplay: params.get('autoplay') === '1', speed: parseFloat(params.get('speed')) || 1, comp: params.get('comp'), figures: this.figures });
     window.__match = this.match; // handy for debugging in the console
   }
 

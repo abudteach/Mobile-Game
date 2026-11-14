@@ -75,7 +75,7 @@ export class MenuUI {
       <div class="m-stage">
         <div class="m-head">
           <div class="logo"><span class="l1">DRIP</span><span class="l2">CLASH</span></div>
-          <div class="chips"><div class="trophies"><i></i><b>${getTrophies()}</b> ${t('trophies')}</div><button class="sound" aria-label="${t('sound')}"></button></div>
+          <div class="chips"><div class="trophies"><i></i><b>${getTrophies()}</b> ${t('trophies')}</div><button class="sound" aria-label="${t('sound')}"></button><button class="figbtn"></button></div>
           <div class="rot-hint">${t('rotate')}</div>
         </div>
         <div class="m-art"><div class="art-glow"></div><div class="art-floor"></div><img class="art" alt="" draggable="false" /></div>
@@ -92,6 +92,11 @@ export class MenuUI {
     const paintSnd = () => snd.classList.toggle('off', !audio.enabled);
     snd.addEventListener('click', () => { audio.unlock(); audio.setEnabled(!audio.enabled); paintSnd(); audio.click(); });
     paintSnd();
+    // which figures run around in the match: rigged 3D models or the artwork cut-outs
+    const fig = this.el.querySelector('.figbtn');
+    const paintFig = () => { fig.textContent = store.get('dc_fig', '3d') === '3d' ? t('fig3d') : t('figArt'); };
+    fig.addEventListener('click', () => { audio.unlock(); audio.click(); store.set('dc_fig', store.get('dc_fig', '3d') === '3d' ? 'art' : '3d'); paintFig(); });
+    paintFig();
     this.select(this.selected);
   }
 

@@ -74,15 +74,16 @@ export function glowSprite(hex, size, opacity = 0.9, target = 1.1) {
 
 const NO_FLASH = { value: 0 };
 // Adds a soft rim light and a white "hit flash" to a lit material.
-export function addRim(mat, flash = NO_FLASH, strength = 1) {
+export function addRim(mat, flash = NO_FLASH, strength = 1, lift = 0) {
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uFlash = flash;
     sh.uniforms.uRim = { value: strength };
+    sh.uniforms.uLift = { value: lift }; // extra self-light so shaded sides stay readable
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uFlash;\nuniform float uRim;')
+      .replace('#include <common>', '#include <common>\nuniform float uFlash;\nuniform float uRim;\nuniform float uLift;')
       .replace('#include <opaque_fragment>', `
         float rimF = pow(1.0 - saturate(dot(normalize(vViewPosition), normal)), 2.4) * uRim;
-        outgoingLight += diffuseColor.rgb * rimF * 0.5 + vec3(0.30, 0.42, 0.85) * rimF * 0.22;
+        outgoingLight += diffuseColor.rgb * (rimF * 0.5 + uLift) + vec3(0.30, 0.42, 0.85) * rimF * 0.22;
         outgoingLight = mix(outgoingLight, vec3(1.0, 0.98, 0.94), uFlash * 0.55);
         #include <opaque_fragment>`);
   };
