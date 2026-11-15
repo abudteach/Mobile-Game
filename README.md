@@ -41,6 +41,8 @@ die kein anderer hat (`src/heroes.js`).
 - **Drei Wege:** Mitte (Lane mit Blob-Wellen, Turm, Kern) und oben/unten je eine **Farbquelle**.
 - **Farbquellen:** Wer den Ring um eine Quelle zu 60 % färbt, besitzt sie. Eine eigene Quelle spritzt regelmäßig
   Farbe in die Umgebung, schickt einen zusätzlichen Blob pro Welle und lässt die Ultis des Teams 20 % schneller laden.
+- **Hohes Gras:** Acht Büsche (gespiegelt). Wer darin steht, ist für Gegner unsichtbar, bis er schießt, getroffen
+  wird oder ein Gegner näher als 3,6 Einheiten kommt. Bots halten sich an dieselbe Regel.
 - **Talente:** Auf Level 3, 5 und 7 wählt jeder Held eines von drei Talenten (Schaden, Leben, Tempo, Nachladen,
   Farbradius, Cooldown, Lebensraub, Ulti-Ladung). So entsteht in jedem Match ein eigener Build.
 - **Farb-Schild:** Türme und Kern nehmen nur dann vollen Schaden, wenn der Boden um sie herum in deiner Farbe ist.
@@ -49,7 +51,7 @@ die kein anderer hat (`src/heroes.js`).
 ## Waffen, Skins und Münzen
 
 Jeder Held hat eine eigene Waffe (Name im Menü). Im Menü unter „Waffen" lassen sich Waffen-Skins mit Münzen kaufen
-und pro Held ausrüsten. Ein Skin ändert Form und Funkenfarbe der Schüsse, nie die Stärke. Münzen gibt es nach jedem
+und pro Held ausrüsten. Ein Skin ändert Form und Funkenfarbe der Schüsse und setzt ein leuchtendes Ornament auf die Waffe (im Match und im 3D-Viewer sichtbar), nie die Stärke. Münzen gibt es nach jedem
 Match (Sieg 50, Niederlage 20, plus K.O.s und gemalte Fläche). Gespeichert wird lokal auf dem Gerät (`src/store.js`).
 
 Über „3D ansehen" zeigt das Menü das 3D-Modell des Helden mit Waffe: ziehen dreht es, antippen spielt den Angriff.

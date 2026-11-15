@@ -118,7 +118,7 @@ const FIGURE_FRAG = `
 // Default picture proportions; individual heroes override them with `def.rig`.
 const RIG = [0.44, 0.74, 0.27];
 
-function buildFigure(def, team = 0) {
+function buildFigure(def, team = 0, skin = null) {
   const flash = { value: 0 };
   const root = new THREE.Group();
   const tilt = grp(root);
@@ -146,7 +146,9 @@ function buildFigure(def, team = 0) {
   det(drone, torus(0.1, 0.035), core, { p: [0, -0.02, 0.44] });
   det(drone, torus(0.3, 0.03), core, { r: [Math.PI / 2, 0, 0] });
 
-  return { root, tilt, figure, drone, flash, u: uniforms, H, W, team, tiltNow: TILT, flip: 1, droneAng: team === 0 ? Math.PI / 2 : -Math.PI / 2, topY: H, topZ: 0 };
+  const orn = skinOrnament(skin);
+  if (orn) { orn.position.set(0, 0.5, 0); orn.scale.setScalar(1.7); drone.add(orn); }
+  return { root, tilt, figure, drone, orn, flash, u: uniforms, H, W, team, tiltNow: TILT, flip: 1, droneAng: team === 0 ? Math.PI / 2 : -Math.PI / 2, topY: H, topZ: 0 };
 }
 
 // s: { moving 0..1, kick 0..1, cheer, dir (aim angle), vx (sideways speed -1..1), spin, clear (free space behind the figure) }
@@ -182,6 +184,7 @@ function animateFigure(m, t, dt, s) {
   const r = 1.05 - (s.kick || 0) * 0.3;
   m.drone.position.set(Math.sin(m.droneAng) * r, 1.25 + Math.sin(t * 3.1) * 0.08, Math.cos(m.droneAng) * r + 0.15);
   m.drone.rotation.y = m.droneAng;
+  if (m.orn && m.orn.userData.spin) m.orn.rotation.y += dt * m.orn.userData.spin;
 }
 
 // ---------- minions ----------
@@ -255,7 +258,7 @@ async function loadModel(def) {
 export const preloadHeroModels = (defs) => Promise.all(defs.filter((d) => d.model).map(loadModel));
 export const hasModel = (def) => !!def && assets.has(def.id);
 
-function buildRigged(def, team = 0) {
+function buildRigged(def, team = 0, skin = null) {
   const asset = assets.get(def.id);
   const flash = { value: 0 };
   const root = new THREE.Group();
@@ -280,6 +283,9 @@ function buildRigged(def, team = 0) {
     hulls.push(hull);
     o.parent.add(hull);
   }
+  // weapon skin ornament rides on the weapon bone, sized against the model's own scale
+  const orn = skinOrnament(skin), bone = rig.getObjectByName('Muzzle') || rig.getObjectByName('Weapon');
+  if (orn && bone) { orn.scale.setScalar(1.5 / scale); bone.add(orn); }
   const mixer = new THREE.AnimationMixer(rig);
   const act = {};
   for (const name in asset.clips) {
@@ -289,7 +295,7 @@ function buildRigged(def, team = 0) {
     act[name] = a;
   }
   const m = {
-    is3d: true, root, inner, rig, flash, mixer, act, team, hulls, yaw: team === 0 ? Math.PI / 2 : -Math.PI / 2, w: { Idle: 1, RunForward: 0, WalkBackward: 0, StrafeLeft: 0, StrafeRight: 0 },
+    is3d: true, root, inner, rig, flash, mixer, act, team, hulls, orn: bone ? orn : null, yaw: team === 0 ? Math.PI / 2 : -Math.PI / 2, w: { Idle: 1, RunForward: 0, WalkBackward: 0, StrafeLeft: 0, StrafeRight: 0 },
     topY: tall * 1.03, topZ: 0, hitCd: 0, down: false,
     // one-shot animations: Attack, Special, HitReact (upper body), KO, Respawn (whole body)
     trigger(name) {
@@ -331,13 +337,14 @@ function animateRigged(m, t, dt, s) {
     for (const n of LOCO) { m.w[n] += ((n === want ? 1 : 0) - m.w[n]) * k; m.act[n].setEffectiveWeight(m.w[n]); }
     m.act.RunForward.timeScale = 1.35;
   }
+  if (m.orn && m.orn.userData.spin) m.orn.rotation.y += dt * m.orn.userData.spin;
   if (m.hulls[0] && m.hulls[0].visible === perf.lite) for (const h of m.hulls) h.visible = !perf.lite;
   m.mixer.update(dt);
 }
 
 // A hero in the match: the rigged 3D model when it is loaded and wanted, otherwise the artwork figure.
-export function buildHero(def, team = 0, mode = '3d') {
-  return mode === '3d' && assets.has(def.id) ? buildRigged(def, team) : buildFigure(def, team);
+export function buildHero(def, team = 0, mode = '3d', skin = null) {
+  return mode === '3d' && assets.has(def.id) ? buildRigged(def, team, skin) : buildFigure(def, team, skin);
 }
 
 export function animateHero(m, t, dt, s) {
@@ -365,6 +372,25 @@ export function renderPortrait(renderer, def, w = 440, h = 660) {
   const url = renderer.domElement.toDataURL('image/png');
   renderer.setPixelRatio(ratio); renderer.setSize(size.x, size.y, false); renderer.setClearColor(clearColor, clearAlpha); renderer.toneMapping = tm;
   return url;
+}
+
+// Visible part of a weapon skin: a glowing ornament that sits on the hero's weapon (3D models)
+// or on their paint drone (artwork figures).
+export function skinOrnament(skin) {
+  if (!skin || !skin.color) return null;
+  const g = new THREE.Group();
+  const mat = basic(glow(skin.color, 1.35));
+  const shapes = {
+    laser: () => { det(g, cyl(0.035, 0.035, 0.7, 6), mat, { r: [Math.PI / 2, 0, 0] }); det(g, torus(0.12, 0.03), mat, { p: [0, 0, 0.3] }); },
+    star: () => { det(g, new THREE.OctahedronGeometry(0.17), mat, { s: [1, 1.5, 1] }); det(g, new THREE.OctahedronGeometry(0.09), mat, { p: [0.2, 0.12, 0] }); },
+    candy: () => { det(g, torus(0.15, 0.06), mat); det(g, sphere(0.07, 8, 6), mat); },
+    bubble: () => { det(g, sphere(0.2, 12, 9), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false })); det(g, sphere(0.08, 8, 6), mat, { p: [0.16, 0.14, 0] }); },
+    flame: () => { det(g, cone(0.13, 0.42, 7), mat, { p: [0, 0.12, 0] }); det(g, cone(0.07, 0.24, 6), basic(glow(0xffe36b, 1.4)), { p: [0, 0.08, 0.02] }); },
+    moon: () => { det(g, torus(0.17, 0.05, Math.PI * 1.35), mat, { r: [0, 0, 0.6] }); },
+  };
+  (shapes[skin.id] || shapes.star)();
+  g.userData.spin = skin.id === 'star' || skin.id === 'candy' || skin.id === 'moon' ? 2.5 : 0;
+  return g;
 }
 
 // ---------- gadgets ----------

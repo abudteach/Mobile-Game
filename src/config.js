@@ -33,4 +33,11 @@ for (const o of QUADRANT) {
   for (const x of xs) for (const z of zs) OBSTACLES.push({ ...o, x, z });
 }
 
+// Tall grass. A hero standing in it is hidden from the other team unless an enemy is close
+// or the hero has just attacked or been hit. Mirrored like the cover blocks.
+export const BUSHES = [];
+for (const b of [{ x: -4.6, z: -3, w: 3.8, d: 2.4 }, { x: -6.4, z: -15.6, w: 4.2, d: 3 }]) {
+  for (const sx of [1, -1]) for (const sz of [1, -1]) BUSHES.push({ ...b, x: b.x * sx, z: b.z * sz });
+}
+
 export const BOT_NAMES = ['Lumi', 'Taro', 'Pixel', 'Yuna', 'Bo', 'Nox', 'Milo', 'Zuri', 'Fynn', 'Kiwi', 'Jax', 'Suki'];

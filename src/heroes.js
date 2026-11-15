@@ -90,7 +90,7 @@ export const HEROES = [
   {
     id: 'funk', weapon: T('Funken-Blaster', 'Spark Blaster'), shot: 'bolt', pitch: 1.5, name: 'FUNK', art: funkArt, model: funkModel, size3d: 0.94, face: [220, -8], aspect: 0.730, size: 0.9, color: '#ffb21f',
     role: T('Tüftler', 'Tinkerer'), tagline: T('Klein, frech – und nie allein: sein Geschütz schießt mit.', 'Small, cheeky – and never alone: his turret shoots too.'),
-    hp: 3200, speed: 6.2, reload: 0.58, ammo: 4, range: 9.5, projSpeed: 26, prefDist: 7, ultCharge: 4000,
+    hp: 3700, speed: 6.3, reload: 0.54, ammo: 4, range: 9.5, projSpeed: 26, prefDist: 8, ultCharge: 4000,
     aim: { type: 'line', width: 0.6 }, stats: { atk: 4, def: 1, spd: 4, paint: 3 },
     passive: { overclock: 4 },
     desc: {
@@ -102,9 +102,9 @@ export const HEROES = [
     attack(m, h, a) {
       h.shots = (h.shots || 0) + 1;
       const charged = h.shots % 4 === 0;
-      m.shoot(h, { dx: a.dx, dz: a.dz, speed: 26, range: 9.5, dmg: charged ? 680 : 340, paintR: charged ? 1.5 : 1.0, trailR: charged ? 0.8 : 0.55, size: charged ? 1.6 : 1, pierce: charged });
+      m.shoot(h, { dx: a.dx, dz: a.dz, speed: 26, range: 9.5, dmg: charged ? 760 : 380, paintR: charged ? 1.7 : 1.15, trailR: charged ? 0.9 : 0.65, size: charged ? 1.6 : 1, pierce: charged });
     },
-    ability: { cd: 11, range: 5, aim: 'area', radius: 1.2, ai: { type: 'summon', range: 9 }, use(m, h, a) { m.addTurret(h, h.x + a.dx * a.dist, h.z + a.dz * a.dist, { hp: 1500, dur: 14, range: 7.5, dmg: 185, rate: 0.55 }); } },
+    ability: { cd: 11, range: 5, aim: 'area', radius: 1.2, ai: { type: 'summon', range: 9 }, use(m, h, a) { m.addTurret(h, h.x + a.dx * a.dist, h.z + a.dz * a.dist, { hp: 1700, dur: 14, range: 7.5, dmg: 205, rate: 0.55 }); } },
     ult: { range: 12, aim: 'cone', spread: 0.34, ai: { type: 'skillshot', range: 11 }, use(m, h, a) { fan(a, 3, 0.24).forEach((d, i) => m.after(i * 0.08, () => m.beam(h, d.dx, d.dz, 12, 0.85, 520))); } },
   },
   {
@@ -138,7 +138,7 @@ export const HEROES = [
       ability: skill('Rückenwind', 'Tailwind', 'Du und Verbündete in der Nähe laufen und laden 4 Sekunden schneller.', 'You and nearby allies move and reload faster for 4 seconds.'),
       ult: skill('Wolkenbruch', 'Cloudburst', 'Riesige Farbwelle, die Gegner wegschiebt.', 'Huge paint wave that shoves enemies back.'),
     },
-    attack(m, h, a) { m.shoot(h, { dx: a.dx, dz: a.dz, speed: 13, range: 9, dmg: 330, paintR: 1.5, trailR: 0.9, size: 1.9, hitR: 0.65, pierce: true, healAllies: 300 }); },
+    attack(m, h, a) { m.shoot(h, { dx: a.dx, dz: a.dz, speed: 13, range: 9, dmg: 365, paintR: 1.5, trailR: 0.9, size: 1.9, hitR: 0.65, pierce: true, healAllies: 300 }); },
     ability: { cd: 10, range: 5.5, aim: 'self', radius: 5.5, ai: { type: 'buff', range: 9 }, use(m, h) { m.haste(h, 5.5, 4); } },
     ult: {
       range: 12, aim: 'line', width: 6.4, ai: { type: 'skillshot', range: 9 },
@@ -160,8 +160,8 @@ export const HEROES = [
       ability: skill('Mondstrahl', 'Moonbeam', 'Strahl, der alle Gegner in einer Linie trifft.', 'Beam that hits every enemy in a line.'),
       ult: skill('Farbregen', 'Paint Rain', 'Lässt es in einem großen Gebiet Farbe regnen.', 'Makes it rain paint over a large area.'),
     },
-    attack(m, h, a) { m.shoot(h, { dx: a.dx, dz: a.dz, speed: 30, range: 11.5, dmg: 590, ramp: 0.5, paintR: 1.3, trailR: 0.7, size: 1.15 }); },
-    ability: { cd: 7, range: 13, aim: 'line', width: 1.0, ai: { type: 'skillshot', range: 12 }, use(m, h, a) { m.beam(h, a.dx, a.dz, 13, 0.85, 560); } },
+    attack(m, h, a) { m.shoot(h, { dx: a.dx, dz: a.dz, speed: 30, range: 11.5, dmg: 555, ramp: 0.5, paintR: 1.3, trailR: 0.7, size: 1.15 }); },
+    ability: { cd: 7, range: 13, aim: 'line', width: 1.0, ai: { type: 'skillshot', range: 12 }, use(m, h, a) { m.beam(h, a.dx, a.dz, 13, 0.85, 520); } },
     ult: { range: 11, aim: 'area', radius: 5, ai: { type: 'area', range: 11 }, use(m, h, a) { m.addZone({ type: 'rain', owner: h, x: h.x + a.dx * a.dist, z: h.z + a.dz * a.dist, r: 5, dur: 4.2, tick: 0.4, dmg: 200, slow: 0.75, paintN: 4 }); } },
   },
   {

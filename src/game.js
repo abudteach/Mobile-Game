@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {
   HALF_W, HALF_H, TEAM_COLORS, TEAM_CSS, MATCH_TIME, WAVE_INTERVAL, MAX_LEVEL,
-  SPAWN, CORE_POS, TOWER_POS, BOT_NAMES,
+  SPAWN, CORE_POS, TOWER_POS, BOT_NAMES, BUSHES,
 } from './config.js';
 import { Paint } from './paint.js';
 import { buildArena, resolveCollisions, steer, segBox, pointInBox, clearLine, BOXES } from './world.js';
@@ -15,6 +15,7 @@ import { audio } from './audio.js';
 import { t, tr } from './i18n.js';
 import { view } from './view.js';
 import { glow, glowMat, glowSprite, bubbleMat, perf } from './gfx.js';
+import { toon as toonMat } from './models.js';
 
 const HERO_R = 0.6;
 const TOWER_RANGE = 10;
@@ -125,6 +126,7 @@ export class Match {
 
     this.buildStructures();
     this.buildWells();
+    this.buildBushes();
     this.colliders = [...this.structures, ...this.wells]; // round things units walk around
     this.buildHeroes(heroById(heroId));
     this.buildAim();
@@ -218,6 +220,34 @@ export class Match {
     }
   }
 
+  buildBushes() {
+    const geo = new THREE.IcosahedronGeometry(1, 1);
+    const mat = toonMat(0x2fbf6b);
+    const blobs = [];
+    for (const b of BUSHES) {
+      for (let x = b.x - b.w / 2 + 0.5; x <= b.x + b.w / 2 - 0.4; x += 0.95) for (let z = b.z - b.d / 2 + 0.5; z <= b.z + b.d / 2 - 0.4; z += 0.95) blobs.push([x + (Math.random() - 0.5) * 0.4, z + (Math.random() - 0.5) * 0.4, 0.7 + Math.random() * 0.3]);
+    }
+    const inst = new THREE.InstancedMesh(geo, mat, blobs.length);
+    const o = new THREE.Object3D(), c = new THREE.Color();
+    blobs.forEach(([x, z, s], i) => {
+      o.position.set(x, s * 0.42, z); o.scale.set(s, s * 0.72, s); o.rotation.y = Math.random() * 6; o.updateMatrix();
+      inst.setMatrixAt(i, o.matrix);
+      inst.setColorAt(i, c.setHex(i % 3 ? 0x2fbf6b : 0x49d67f));
+    });
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    this.scene.add(inst);
+  }
+
+  inBush(u) { for (const b of BUSHES) if (Math.abs(u.x - b.x) < b.w / 2 && Math.abs(u.z - b.z) < b.d / 2) return true; return false; }
+
+  // Can `team` see this unit? Heroes in tall grass are hidden unless revealed or an enemy stands close.
+  canSee(team, u) {
+    if (u.kind !== 'hero' || u.team === team || !u.inBush || u.revealT > 0) return true;
+    for (const h of this.heroes) if (h.team === team && h.alive && dist(h, u) < 3.6) return true;
+    return false;
+  }
+
   buildHeroes(playerDef) {
     const allies = [playerDef, ...shuffle(HEROES.filter((h) => h !== playerDef)).slice(0, 2)];
     let enemies = shuffle(HEROES).slice(0, 3);
@@ -238,11 +268,11 @@ export class Match {
           alive: true, respawn: 0, shield: 0, slowT: 0, slowF: 1, kx: 0, kz: 0,
           dash: null, spin: null, spray: null, sinceHit: 9,
           mod: { dmg: 1, hp: 1, speed: 1, reload: 1, paint: 1, cdr: 1, vamp: 0, ult: 1 }, talents: [], offer: null,
-          hasteT: 0, barrier: 0, guardCd: 0, auraT: 0, shots: 0, cdMax: def.ability.cd, turret: null, walk: 0, kick: 0, moving: 0,
+          inBush: false, revealT: 0, hasteT: 0, barrier: 0, guardCd: 0, auraT: 0, shots: 0, cdMax: def.ability.cd, turret: null, walk: 0, kick: 0, moving: 0,
           kills: 0, deaths: 0, painted: 0, dmgDone: 0, streak: 0, streakT: 0,
           cmd: { mx: 0, mz: 0 }, animT: Math.random() * 10,
         };
-        h.model = buildHero(def, team, this.opts.figures);
+        h.model = buildHero(def, team, this.opts.figures, isPlayer ? this.opts.skin : null);
         h.model.root.position.set(h.x, 0, h.z);
         this.scene.add(h.model.root);
         // team ring on the ground
@@ -534,6 +564,7 @@ export class Match {
     h.aimHold = 0.4;
     h.kick = 1;
     h.def.attack(this, h, aim);
+    h.revealT = 1.2;
     h.model.trigger?.('Attack');
     if (h.isPlayer) audio.shoot(1, h.def.pitch); else if (this.near(h.x, h.z, 16)) audio.shoot(0.35, h.def.pitch);
     return true;
@@ -545,6 +576,7 @@ export class Match {
     if (h.def.ability.aim !== 'self') { h.dir = Math.atan2(aim.dx, aim.dz); h.aimHold = 0.4; }
     h.kick = 1;
     h.def.ability.use(this, h, aim);
+    h.revealT = 1.2;
     h.model.trigger?.('Special');
     if (this.near(h.x, h.z, 16)) audio.ability();
     return true;
@@ -558,6 +590,7 @@ export class Match {
     this.fx.ring(h.x, h.z, 3, 0xffffff, 0.4);
     this.fx.splash(h.x, 1.2, h.z, 0xffffff, 14, 6);
     h.def.ult.use(this, h, aim);
+    h.revealT = 1.5;
     h.model.trigger?.('Special');
     if (this.near(h.x, h.z, 20)) audio.ult();
     if (h.isPlayer) { this.fx.addShake(0.35); this.slowmo = 0.22; this.hud.pulse('ult'); }
@@ -570,6 +603,7 @@ export class Match {
     let best = null, bestScore = 1e9;
     for (const u of this.targets[1 - h.team]) {
       if (u.kind !== 'hero' && u.kind !== 'minion' && !this.canDamage(u)) continue;
+      if (!this.canSee(h.team, u)) continue;
       const d = dist(h, u) - u.radius;
       if (d > range + 0.6) continue;
       if (!clearLine(h.x, h.z, u.x, u.z)) continue;
@@ -687,6 +721,7 @@ export class Match {
     u.hp -= amount;
     u.sinceHit = 0;
     u.flash = 0.14;
+    u.revealT = 1;
     if (u.model && u.model.flash) u.model.flash.value = 1;
     if (u.kind === 'hero') u.model.trigger?.('HitReact');
     if (owner) {
@@ -937,6 +972,12 @@ export class Match {
     m.root.position.set(h.x, h.dash ? (h.dash.o.fly ? 1.7 : 0.25) : 0, h.z);
     if (haste && Math.random() < dt * 14) this.fx.splash(h.x, 0.3, h.z, 0xffffff, 1, 2);
     h.ring.position.set(h.x, 0.06, h.z);
+    // tall grass: hidden enemies disappear for the player, own heroes fade a little
+    h.revealT -= dt;
+    h.inBush = this.inBush(h);
+    const seen = this.canSee(this.player.team, h);
+    m.root.visible = seen; h.ui.visible = seen; h.ring.visible = seen;
+    if (m.u) m.u.uFade.value = h.inBush && h.team === this.player.team ? 0.99 : 1;
     h.ui.position.set(h.x, m.topY + 0.6, h.z + m.topZ);
     h.bar.set(h.hp / h.maxHp);
     if (h.ammoBar) h.ammoBar.set((h.ammo + (h.ammo < h.def.ammo ? h.reload : 0)) / h.def.ammo);

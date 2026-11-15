@@ -56,7 +56,7 @@ export class MenuScene {
     this.model = null;
     this.holder.visible = !!on && hasModel(def);
     if (!this.holder.visible) return;
-    this.model = buildHero(def, 0, '3d');
+    this.model = buildHero(def, 0, '3d', skinById(equippedSkin(def.id)));
     this.holder.add(this.model.root);
   }
 
@@ -200,7 +200,7 @@ export class MenuUI {
             return `<div class="skin ${on ? 'on' : ''}"><div class="sw sw-${s.style || h.shot}" style="--sc:#${(s.color ?? 0x18d6ff).toString(16).padStart(6, '0')}"></div><b>${tr(s.name)}</b>${btn}</div>`;
           }).join('')}</div>
         </div>`;
-      this.overlay.querySelector('.ov-x').addEventListener('click', () => { audio.click(); this.closeOverlay(); this.select(h.id); });
+      this.overlay.querySelector('.ov-x').addEventListener('click', () => { audio.click(); this.closeOverlay(); this.select(h.id); if (this.viewer) this.scene.showHero(h, true); });
       this.overlay.querySelectorAll('[data-buy]').forEach((b) => b.addEventListener('click', () => {
         const s = skinById(b.dataset.buy);
         if (getCoins() < s.price) return;
@@ -213,7 +213,7 @@ export class MenuUI {
   }
 
   openHelp() {
-    const rows = ['help1', 'help2', 'help3', 'help4', 'help5'].map((k, i) => `<div class="help-row"><i>${i + 1}</i><p>${t(k)}</p></div>`).join('');
+    const rows = ['help1', 'help2', 'help3', 'help4', 'help5', 'help6'].map((k, i) => `<div class="help-row"><i>${i + 1}</i><p>${t(k)}</p></div>`).join('');
     this.overlay.innerHTML = `<div class="ov-card"><div class="ov-head"><b>${t('helpTitle')}</b><button class="ov-x" aria-label="close">✕</button></div>${rows}<button class="play ov-ok">${t('gotIt')}</button></div>`;
     this.overlay.classList.add('show');
     const close = () => { audio.click(); this.closeOverlay(); };

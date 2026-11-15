@@ -19,7 +19,7 @@ function decide(m, h) {
 
   let foe = null, foeD = 1e9;
   for (const e of m.heroes) {
-    if (e.team === h.team || !e.alive) continue;
+    if (e.team === h.team || !e.alive || !m.canSee(h.team, e)) continue;
     const d = dist(h, e) - (1 - e.hp / e.maxHp) * 2; // prefer wounded targets a little
     if (d < foeD) { foeD = d; foe = e; }
   }
